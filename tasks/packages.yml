@@ -12,6 +12,8 @@
   become: true
   ansible.builtin.apt:
     name:
+      - bash-completion
       - curl
       - python3
+      - vim
     state: present
