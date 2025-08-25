@@ -11,11 +11,3 @@
     owner: root
     group: root
     mode: '0644'
-- name: Setup network by populating `/etc/network`.
-  become: true
-  ansible.builtin.copy:
-    src: files/eth0
-    dest: /etc/network/interfaces.d/eth0
-    owner: root
-    group: root
-    mode: '0644'
