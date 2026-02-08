@@ -14,6 +14,9 @@
     name:
       - bash-completion
       - curl
+      - linux-cpupower
       - python3
+      - tcpdump
+      - tmux
       - vim
     state: present
