@@ -99,9 +99,8 @@ Further improvements on this will be addressed in issue
 To establish a serial console connection, connect the USB-to-TTL cable leads to
 the GPIO header located on the edge of the RPI4 board.
 
-> :warning: DO NOT connect the Red (5V) wire if you are powering the Raspberry
-> Pi via its USB-C port.
-> Connecting two power sources simultaneously will damage the board.
+> :warning: DO NOT connect the Red (5V) wire.
+> Connecting it will damage the board.
 
 The connection requires a *crossover* configuration: The cable's Receiver (RX)
 connects to the Pi's Transmitter (TX), and vice versa.
