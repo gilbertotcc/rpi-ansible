@@ -92,7 +92,7 @@ Where `<PASSWORD>` must be replaced with the wifi password for network
 `<NETWORK>`.
 
 Further improvements on this will be addressed in issue
-s<https://github.com/gilbertotcc/rpi-ansible/issues/2>.
+<https://github.com/gilbertotcc/rpi-ansible/issues/2>.
 
 ## Serial console connection
 
