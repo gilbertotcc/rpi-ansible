@@ -108,7 +108,7 @@ connects to the Pi's Transmitter (TX), and vice versa.
 
 | Wire Color | Cable Function | Connect to Pi Pin | Pi Pin Function | Description                                           |
 | :--------- | :------------- | :---------------- | :-------------- | :---------------------------------------------------- |
-| **Red**    | 5V VCC         | **NC**            | 5V Power        | **Leave Disconnected** (unless powering Pi via cable) |
+| **Red**    | 5V VCC         | **NC**            | 5V Power        | **Leave Disconnected** |
 | **Black**  | GND            | **Pin 6**         | Ground          | Common Ground reference                               |
 | **White**  | RX (Receive)   | **Pin 8**         | GPIO 14 (TXD)   | Pi transmits data → Cable receives                    |
 | **Green**  | TX (Transmit)  | **Pin 10**        | GPIO 15 (RXD)   | Cable transmits data → Pi receives                    |
