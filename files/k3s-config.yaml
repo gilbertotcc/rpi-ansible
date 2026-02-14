@@ -1,3 +1,5 @@
 ---
+tls-san:
+  - 10.254.10.8
 disable: metrics-server,traefik
 disable-cloud-controller: true
