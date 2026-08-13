@@ -1,4 +1,5 @@
 name: Check Markdown files
+permissions: {}
 
 'on':
   pull_request:
