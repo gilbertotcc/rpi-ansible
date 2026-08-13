@@ -13,6 +13,8 @@ config:
 
 globs:
   - "**/*.md"
+ignores:
+  - .claude/skills/caveman-commit/*
 
 fix: true
 
