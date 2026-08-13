@@ -1,5 +1,7 @@
 ---
 tls-san:
-  - 10.254.10.8
+{% for san in k3s_tls_san %}
+  - {{ san }}
+{% endfor %}
 disable: metrics-server,traefik
 disable-cloud-controller: true

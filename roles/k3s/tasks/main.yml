@@ -32,8 +32,8 @@
     mode: '0755'
 - name: Populate k3s configuration.
   become: true
-  ansible.builtin.copy:
-    src: k3s-config.yaml
+  ansible.builtin.template:
+    src: k3s-config.yaml.j2
     dest: /etc/rancher/k3s/config.yaml
     owner: root
     group: root
