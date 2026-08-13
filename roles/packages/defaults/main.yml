@@ -1,0 +1,11 @@
+---
+packages_needed_packages:
+  - bash-completion
+  - curl
+  - htop
+  - linux-cpupower
+  - python3
+  - tcpdump
+  - tmux
+  - vim
+packages_update: true
