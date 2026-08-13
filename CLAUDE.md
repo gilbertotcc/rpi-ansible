@@ -23,7 +23,7 @@ make ansible-lint   # ansible-lint
 make run            # ansible-playbook --verbose playbook.yml (applies config to the real RPI)
 ```
 
-Run `make check` before considering any change to `playbook.yml`, `tasks/*.yml`,
+Run `make check` before considering any change to `playbook.yml`, `roles/*/tasks/*.yml`,
 or lint configs complete — this is exactly what the `ansible.yaml` CI workflow runs.
 
 There is no test suite; correctness is validated via syntax-check + ansible-lint
@@ -32,34 +32,45 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
 
 ## Architecture
 
-- `playbook.yml` is the single entrypoint. It targets `hosts: all` and imports
-  task files from `tasks/` **in a fixed order**, each responsible for one
-  concern:
-  1. `tasks/update_packages.yml` — apt upgrade everything
-  2. `tasks/packages.yml` — install the fixed package list
-  3. `tasks/network.yml` — set hostname from `files/hostname`
-  4. `tasks/wireguard.yml` — install WireGuard, generate keys idempotently (uses
+- `playbook.yml` is the single entrypoint. It targets `hosts: all` and applies
+  roles from `roles/` **in a fixed order** via a `roles:` list, each
+  responsible for one concern:
+  1. `roles/packages` — apt upgrade everything (gated by `packages_update`)
+     and install the package list (`packages_needed_packages`)
+  2. `roles/network` — set hostname from `roles/network/files/hostname`
+  3. `roles/dns_resolver` — install/enable the DNS resolver
+     (`dns_resolver_package`/`dns_resolver_service`, default `unbound`),
+     point `/etc/resolv.conf` at it
+  4. `roles/wireguard` — install WireGuard, generate keys idempotently (uses
      `creates:` guards)
-  5. `tasks/dns_resolver.yml` — install/enable `unbound`, point
-     `/etc/resolv.conf` at it
-  6. `tasks/k3s.yml` — install/upgrade k3s to the version pinned by
-     `k3s_version` in `playbook.yml`, using `files/k3s-config.yaml`
-- Order matters: later task files assume earlier ones already ran (packages
+  5. `roles/k3s` — install/upgrade k3s to the version pinned by
+     `k3s_version` in `playbook.yml`, using
+     `roles/k3s/files/k3s-config.yaml`
+- Order matters: later roles assume earlier ones already ran (packages
   installed, hostname set, etc.). When adding a new concern, add a new
-  `tasks/<name>.yml` file and import it from `playbook.yml` in the appropriate
-  position rather than growing an existing task file with unrelated work.
-- `files/` holds static files pushed verbatim to the Pi via `ansible.builtin.copy`
-  (hostname, k3s config, resolv.conf). WiFi credentials are deliberately
-  **not** managed here — see the "Manual configurations" section of
-  `README.md` — to avoid committing secrets.
+  `roles/<name>/` directory (with `tasks/main.yml` and, as needed,
+  `defaults/main.yml`, `files/`, `meta/main.yml`) and reference it from
+  `playbook.yml`'s `roles:` list in the appropriate position, rather than
+  growing an existing role's tasks with unrelated work.
+- Each role's `files/` holds static files pushed verbatim to the Pi via
+  `ansible.builtin.copy` (hostname, k3s config, resolv.conf). WiFi
+  credentials are deliberately **not** managed here — see the "Manual
+  configurations" section of `README.md` — to avoid committing secrets.
+- Values a role's tasks may need to vary (package lists, the DNS resolver
+  package/service name, etc.) live in that role's `defaults/main.yml`
+  rather than being hardcoded in `tasks/main.yml`.
 - `k3s_version` (in `playbook.yml`) is validated by an `assert` in
-  `tasks/k3s.yml` against `v[0-9]+\.[0-9]+\.[0-9]+\+k3s[0-9]+`; the task
-  compares the installed version to it and only reinstalls on mismatch. Bump
-  this var to upgrade k3s; valid channel/version values are listed at
-  <https://update.k3s.io/v1-release/channels>.
+  `roles/k3s/tasks/main.yml` against `v[0-9]+\.[0-9]+\.[0-9]+\+k3s[0-9]+`;
+  the task compares the installed version to it and only reinstalls on
+  mismatch. Bump this var to upgrade k3s; valid channel/version values are
+  listed at <https://update.k3s.io/v1-release/channels>.
 - Nearly every task uses `become: true` and guards apt cache updates with
   `cache_valid_time: 3600`, following the existing pattern for any new apt-based
   task.
+- Every role has a `meta/main.yml` with `dependencies: []` — roles are
+  self-contained and don't depend on each other via Ansible role
+  dependencies; ordering between them is expressed solely by their position
+  in `playbook.yml`'s `roles:` list.
 
 ## CI (GitHub Actions, all under `.github/workflows/`)
 
@@ -75,10 +86,10 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
 
 ## Conventions worth preserving
 
-- Every task in `tasks/*.yml` has a trailing-period, capitalized `name:`
-  (e.g. `Install unbound if needed.`) — match this style for new tasks.
-  Every task file starts with a `---` and a short `#`-comment block describing
-  its purpose.
+- Every task in `roles/*/tasks/main.yml` has a trailing-period, capitalized
+  `name:` (e.g. `Install unbound if needed.`) — match this style for new
+  tasks. Every `tasks/main.yml` starts with a `---` and a short
+  `#`-comment block describing the role's purpose.
   Idempotency-sensitive shell steps use `creates:` / `changed_when:` rather than
   free-running shell commands.
 - Markdown must pass `markdownlint-cli2` (`.markdownlint-cli2.yaml`: ATX
