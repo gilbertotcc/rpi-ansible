@@ -10,6 +10,7 @@
   roles:
     - role: packages
     - role: network
+    - role: wireless
     - role: dns_resolver
     - role: wireguard
     - role: k3s

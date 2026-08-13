@@ -1,0 +1,4 @@
+allow-hotplug wlan0
+iface wlan0 inet dhcp
+    wpa-ssid {{ wireless_ssid }}
+    wpa-psk {{ wireless_psk }}

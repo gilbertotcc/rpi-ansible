@@ -26,6 +26,12 @@ make run            # ansible-playbook --verbose playbook.yml (applies config to
 Run `make check` before considering any change to `playbook.yml`, `roles/*/tasks/*.yml`,
 or lint configs complete — this is exactly what the `ansible.yaml` CI workflow runs.
 
+Once `group_vars/rpi/wireless.yml` exists (see `roles/wireless` below),
+`make run` needs a vault password to decrypt it:
+`make run ANSIBLE_PLAYBOOK="ansible-playbook --ask-vault-pass"`. For this
+deployment the password is kept in gopass (`Devices/rpi-ansible-vault`),
+not typed from memory — see the "WiFi network" section of `README.md`.
+
 There is no test suite; correctness is validated via syntax-check + ansible-lint
 (structural/style) and via `conftest` in CI (policy checks against
 `.github` using an external policy bundle, see `.github/workflows/conftest.yaml`).
@@ -38,12 +44,14 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   1. `roles/packages` — apt upgrade everything (gated by `packages_update`)
      and install the package list (`packages_needed_packages`)
   2. `roles/network` — set hostname from `roles/network/files/hostname`
-  3. `roles/dns_resolver` — install/enable the DNS resolver
+  3. `roles/wireless` — optionally configure `wlan0` via ifupdown +
+     `wpasupplicant` (`wireless_enabled`, default `false`; no-op otherwise)
+  4. `roles/dns_resolver` — install/enable the DNS resolver
      (`dns_resolver_package`/`dns_resolver_service`, default `unbound`),
      point `/etc/resolv.conf` at it
-  4. `roles/wireguard` — install WireGuard, generate keys idempotently (uses
+  5. `roles/wireguard` — install WireGuard, generate keys idempotently (uses
      `creates:` guards)
-  5. `roles/k3s` — install/upgrade k3s to the version pinned by
+  6. `roles/k3s` — install/upgrade k3s to the version pinned by
      `k3s_version` in `playbook.yml`, using
      `roles/k3s/files/k3s-config.yaml`
 - Order matters: later roles assume earlier ones already ran (packages
@@ -53,9 +61,17 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   `playbook.yml`'s `roles:` list in the appropriate position, rather than
   growing an existing role's tasks with unrelated work.
 - Each role's `files/` holds static files pushed verbatim to the Pi via
-  `ansible.builtin.copy` (hostname, k3s config, resolv.conf). WiFi
-  credentials are deliberately **not** managed here — see the "Manual
-  configurations" section of `README.md` — to avoid committing secrets.
+  `ansible.builtin.copy` (hostname, k3s config, resolv.conf).
+- `wireless_ssid`/`wireless_psk` (used by `roles/wireless`) live in a
+  committed `group_vars/rpi/wireless.yml`, but each value is individually
+  encrypted with `ansible-vault encrypt_string` rather than the whole file
+  being vault-encrypted. This is deliberate: a per-variable `!vault` value
+  is decrypted lazily, only when a task actually templates it — so
+  `yamllint`/`ansible-lint`/`--syntax-check` (i.e. `make check`/CI) can
+  parse the file with **no vault password available at all**. Whole-file
+  encryption doesn't have that property (the YAML can't even be parsed
+  without the password first) and would break CI. See the "WiFi network"
+  section of `README.md` for the exact commands to populate this file.
 - Values a role's tasks may need to vary (package lists, the DNS resolver
   package/service name, etc.) live in that role's `defaults/main.yml`
   rather than being hardcoded in `tasks/main.yml`.

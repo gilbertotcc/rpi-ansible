@@ -69,30 +69,66 @@ apt install python3
 
 ### WiFi network
 
-To avoid hardcoding sensitive information such as the WiFi password, configure
-the WiFi network manually. Edit `/etc/network/interfaces.d/wlan0` with the
-following content.
+WiFi is configured by the `wireless` Ansible role
+(`roles/wireless/tasks/main.yml`), which installs `wpasupplicant` and
+templates `/etc/network/interfaces.d/wlan0` for you. It is disabled by
+default (`wireless_enabled: false`) so a fresh clone never needs any WiFi
+setup at all.
 
-```none
-# To enable wireless networking, uncomment the following lines and -naturally-
-# replace with your network's details.
-#
-# allow-hotplug wlan0
-# iface wlan0 inet dhcp
-# iface wlan0 inet6 dhcp
-#     wpa-ssid my-network-ssid
-#     wpa-psk s3kr3t_P4ss
-allow-hotplug wlan0
-iface wlan0 inet dhcp
-    wpa-ssid <NETWORK>
-    wpa-psk <PASSWORD>
+To avoid ever committing the SSID/password in plaintext, both are stored as
+individually [vault-encrypted](https://docs.ansible.com/ansible/latest/vault_guide/vault_encrypting_content.html)
+variables in a committed `group_vars/rpi/wireless.yml` file. Encrypting the
+SSID too (not just the password) matters because this repo is public: a
+real home network name in git history can be cross-referenced against
+wardriving databases (e.g. WiGLE) back to a real location.
+
+To set it up, pick a vault password (store it in a password manager — you
+will need it for every future `make run`), then generate the two encrypted
+blocks. Reading from stdin, rather than passing the values as command-line
+arguments, keeps them out of your shell history:
+
+```sh
+ansible-vault encrypt_string --ask-vault-pass --stdin-name 'wireless_ssid'
+# type your network's SSID, then press Ctrl-D
+ansible-vault encrypt_string --ask-vault-pass --stdin-name 'wireless_psk'
+# type your network's password, then press Ctrl-D
 ```
 
-Where `<PASSWORD>` must be replaced with the wifi password for network
-`<NETWORK>`.
+Create `group_vars/rpi/wireless.yml` with `wireless_enabled: true` plus the
+two blocks output above, e.g.:
 
-Further improvements on this will be addressed in issue
-<https://github.com/gilbertotcc/rpi-ansible/issues/2>.
+```yaml
+---
+wireless_enabled: true
+wireless_ssid: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          66386439653236336462626566653063336164663966303231363934653561363...
+wireless_psk: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          32643361393835653136306164393433656333383761346130336436393730323...
+```
+
+Then commit that file and apply it, supplying the vault password:
+
+```sh
+make run ANSIBLE_PLAYBOOK="ansible-playbook --ask-vault-pass"
+```
+
+For this deployment, the vault password is kept in
+[gopass](https://www.gopass.pw/) (secret name `Devices/rpi-ansible-vault`)
+rather than typed from memory. Feed it to `ansible-playbook` directly
+instead of the interactive prompt:
+
+```sh
+ansible-playbook \
+  --vault-password-file <(gopass show -o Devices/rpi-ansible-vault) \
+  --verbose playbook.yml
+```
+
+The interface comes up on next boot; to bring it up immediately without
+rebooting, run `ifup wlan0` on the Pi (the role does not do this
+automatically, since restarting the interface could drop the very SSH
+session applying the change if the Pi is currently reached over WiFi).
 
 ## Serial console connection
 

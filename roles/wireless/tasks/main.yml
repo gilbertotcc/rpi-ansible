@@ -1,0 +1,54 @@
+---
+#
+# Setup and configure wireless (WiFi) networking, as an alternative or
+# backup to a wired connection.
+#
+# Uses ifupdown's wpasupplicant integration (wpa-ssid/wpa-psk directives in
+# /etc/network/interfaces.d/wlan0) to bring up wlan0 automatically at boot,
+# following <https://wiki.debian.org/WiFi/HowToUse>.
+#
+# wireless_ssid and wireless_psk are expected to come from an
+# ansible-vault-encrypted group_vars file (see README.md) and must never be
+# stored unencrypted in this repository. The whole role is a no-op unless
+# wireless_enabled is set to true.
+#
+# The interface is deliberately never restarted here: if this host is
+# currently reached over wlan0 itself, bouncing it could drop the very SSH
+# session applying the change. Reboot, or run `ifup wlan0` manually, to
+# apply a changed configuration.
+#
+
+- name: Check wireless_ssid and wireless_psk are set when enabled.
+  delegate_to: localhost
+  ansible.builtin.assert:
+    that:
+      - wireless_ssid | length > 0
+      - wireless_psk | length > 0
+    fail_msg: >
+      wireless_enabled is true but wireless_ssid and/or wireless_psk are
+      empty. Populate them via an ansible-vault-encrypted group_vars file,
+      see README.md.
+    quiet: true
+  when: wireless_enabled
+- name: Update apt cache if needed.
+  become: true
+  ansible.builtin.apt:
+    cache_valid_time: 3600
+    update_cache: true
+  when: wireless_enabled
+- name: Install wpasupplicant if needed.
+  become: true
+  ansible.builtin.apt:
+    name: wpasupplicant
+    state: present
+  when: wireless_enabled
+- name: Populate wireless interface configuration.
+  become: true
+  ansible.builtin.template:
+    src: wlan0.j2
+    dest: /etc/network/interfaces.d/wlan0
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  when: wireless_enabled
