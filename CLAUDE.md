@@ -28,9 +28,9 @@ or lint configs complete — this is exactly what the `ansible.yaml` CI workflow
 
 Once `group_vars/rpi/wireless.yml` exists (see `roles/wireless` below),
 `make run` needs a vault password to decrypt it:
-`make run ANSIBLE_PLAYBOOK="ansible-playbook --ask-vault-pass"`. For this
-deployment the password is kept in gopass (`Devices/rpi-ansible-vault`),
-not typed from memory — see the "WiFi network" section of `README.md`.
+`make run ANSIBLE_PLAYBOOK="ansible-playbook --ask-vault-pass"` — see the
+"WiFi network" section of `README.md` for how to store and retrieve that
+password non-interactively.
 
 There is no test suite; correctness is validated via syntax-check + ansible-lint
 (structural/style) and via `conftest` in CI (policy checks against

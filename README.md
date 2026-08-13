@@ -76,14 +76,14 @@ default (`wireless_enabled: false`) so a fresh clone never needs any WiFi
 setup at all.
 
 To avoid ever committing the SSID/password in plaintext, both are stored as
-individually [vault-encrypted](https://docs.ansible.com/ansible/latest/vault_guide/vault_encrypting_content.html)
-variables in a committed `group_vars/rpi/wireless.yml` file. Encrypting the
-SSID too (not just the password) matters because this repo is public: a
-real home network name in git history can be cross-referenced against
-wardriving databases (e.g. WiGLE) back to a real location.
+individually vault-encrypted variables (see "See also" for the Ansible
+Vault documentation) in a committed `group_vars/rpi/wireless.yml` file.
+Encrypting the SSID too (not just the password) matters if your
+repository is public: a real network name in git history can be
+cross-referenced against wardriving databases (e.g. WiGLE) back to a real
+location.
 
-To set it up, pick a vault password (store it in a password manager — you
-will need it for every future `make run`), then generate the two encrypted
+To set it up, pick a vault password, then generate the two encrypted
 blocks. Reading from stdin, rather than passing the values as command-line
 arguments, keeps them out of your shell history:
 
@@ -108,20 +108,22 @@ wireless_psk: !vault |
           32643361393835653136306164393433656333383761346130336436393730323...
 ```
 
-Then commit that file and apply it, supplying the vault password:
+Then commit that file and apply it, supplying the vault password. You will
+need it for every future `make run` that touches wireless config, so store
+it somewhere you can retrieve it from (a password manager or secrets
+vault) rather than relying on memory:
 
 ```sh
 make run ANSIBLE_PLAYBOOK="ansible-playbook --ask-vault-pass"
 ```
 
-For this deployment, the vault password is kept in
-[gopass](https://www.gopass.pw/) (secret name `Devices/rpi-ansible-vault`)
-rather than typed from memory. Feed it to `ansible-playbook` directly
-instead of the interactive prompt:
+If your password manager can print the secret to stdout, you can skip the
+interactive prompt by passing it via `--vault-password-file` instead —
+e.g. with a CLI password manager such as gopass (see "See also"):
 
 ```sh
 ansible-playbook \
-  --vault-password-file <(gopass show -o Devices/rpi-ansible-vault) \
+  --vault-password-file <(gopass show -o <vault-password-secret-name>) \
   --verbose playbook.yml
 ```
 
@@ -186,3 +188,6 @@ Or you can tpye `C-a C-d`.
 
 - [Serial communication over UART Raspberry Pi 4](https://forums.raspberrypi.com/viewtopic.php?t=307094)
 - [rpi-flux](https://github.com/gilbertotcc/rpi-flux)
+- [Ansible Vault: encrypting individual variables](https://docs.ansible.com/ansible/latest/vault_guide/vault_encrypting_content.html#encrypting-individual-variables-with-ansible-vault)
+- [gopass](https://www.gopass.pw/), an example CLI password manager for
+  storing and retrieving the vault password
