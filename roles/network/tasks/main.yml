@@ -6,7 +6,7 @@
 - name: Set hostname.
   become: true
   ansible.builtin.copy:
-    src: files/hostname
+    src: hostname
     dest: /etc/hostname
     owner: root
     group: root
