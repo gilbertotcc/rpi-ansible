@@ -3,8 +3,8 @@
 # Update all packages to latest version.
 #
 # Uses apt and update the apt cache and keep it for 3600 seconds (to possibly
-# save some bandwidth and time) and update all packages to their latest
-# version.
+# save some bandwidth and time), clean up old package files and unused
+# dependencies, and update all packages to their latest version.
 #
 
 - name: Update apt cache if needed.
@@ -12,6 +12,14 @@
   ansible.builtin.apt:
     cache_valid_time: 3600
     update_cache: true
+- name: Autoclean apt cache.
+  become: true
+  ansible.builtin.apt:
+    autoclean: true
+- name: Autoremove unused packages.
+  become: true
+  ansible.builtin.apt:
+    autoremove: true
 - name: Update all packages to latest version.
   become: true
   ansible.builtin.apt:
