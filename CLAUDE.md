@@ -13,17 +13,17 @@ There is exactly one target host, defined in `hosts.ini`, connected to as
 
 ## Commands
 
-All common tasks are wired through [Task](https://taskfile.dev/) (`Taskfile.yml`):
+All common tasks are wired through `make` (`Makefile`):
 
 ```sh
-task check          # runs yamllint + syntax-check + ansible-lint (the full CI gate)
-task yamllint       # yamllint . 
-task syntax-check   # ansible-playbook --syntax-check against playbook.yml
-task ansible-lint   # ansible-lint
-task run            # ansible-playbook --verbose playbook.yml (applies config to the real RPI)
+make check          # runs yamllint + syntax-check + ansible-lint (the full CI gate)
+make yamllint       # yamllint . 
+make syntax-check   # ansible-playbook --syntax-check against playbook.yml
+make ansible-lint   # ansible-lint
+make run            # ansible-playbook --verbose playbook.yml (applies config to the real RPI)
 ```
 
-Run `task check` before considering any change to `playbook.yml`, `tasks/*.yml`,
+Run `make check` before considering any change to `playbook.yml`, `tasks/*.yml`,
 or lint configs complete — this is exactly what the `ansible.yaml` CI workflow runs.
 
 There is no test suite; correctness is validated via syntax-check + ansible-lint
@@ -63,15 +63,15 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
 
 ## CI (GitHub Actions, all under `.github/workflows/`)
 
-- `ansible.yaml` — runs `task check` on push to `main` and on PRs.
+- `ansible.yaml` — runs `make check` on push to `main` and on PRs.
 - `conftest.yaml` — runs `conftest` against `.github` using an external,
   personal policy bundle (`iamleot/conftest-policies`), on push to `main` and PRs.
 - `check-markdown-files.yml` — `markdownlint-cli2` + `lychee` link checking,
   scoped to `**.md` changes.
 - Dependency updates are handled by both Dependabot (`.github/dependabot.yml`,
-  GitHub Actions only) and Renovate (`renovate.json`, which also has custom
-  regex managers to track `CONFTEST_VERSION` / `TASK_VERSION` pins inside the
-  workflow YAML files).
+  GitHub Actions only) and Renovate (`renovate.json`, which also has a custom
+  regex manager to track the `CONFTEST_VERSION` pin inside the workflow YAML
+  files).
 
 ## Conventions worth preserving
 
