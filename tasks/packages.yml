@@ -14,6 +14,7 @@
     name:
       - bash-completion
       - curl
+      - htop
       - linux-cpupower
       - python3
       - tcpdump
