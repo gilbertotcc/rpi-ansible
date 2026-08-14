@@ -17,7 +17,7 @@ created this fork.
 This repository includes code that he further added in original codebase to
 keep this project up-to-date and well-maintained.
 
-## Initial setup
+## Board setup
 
 The following steps explain how to install a Debian distro on the RPI4 and
 configure it.
@@ -75,10 +75,11 @@ templates `/etc/network/interfaces.d/wlan0` for you. It is disabled by
 default (`wireless_enabled: false`) so a fresh clone never needs any WiFi
 setup at all.
 
-To avoid ever committing the SSID/password in plaintext, both are stored as
-individually vault-encrypted variables (see "See also" for the Ansible
-Vault documentation) in a committed `group_vars/rpi/wireless.yml` file.
-Encrypting the SSID too (not just the password) matters if your
+To avoid ever committing the SSID/password in plaintext, both are stored
+as individually
+[vault-encrypted](https://docs.ansible.com/ansible/latest/vault_guide/vault_encrypting_content.html#encrypting-individual-variables-with-ansible-vault)
+variables in a committed `group_vars/rpi/wireless.yml` file. Encrypting
+the SSID too (not just the password) matters if your
 repository is public: a real network name in git history can be
 cross-referenced against wardriving databases (e.g. WiGLE) back to a real
 location.
@@ -108,29 +109,53 @@ wireless_psk: !vault |
           32643361393835653136306164393433656333383761346130336436393730323...
 ```
 
-Then commit that file and apply it, supplying the vault password. You will
-need it for every future `make run` that touches wireless config, so store
-it somewhere you can retrieve it from (a password manager or secrets
-vault) rather than relying on memory:
+Commit that file, then apply it as described in "Ansible Vault password"
+below. The interface comes up on next boot; to bring it up immediately
+without rebooting, run `ifup wlan0` on the Pi (the role does not do this
+automatically, since restarting the interface could drop the very SSH
+session applying the change if the Pi is currently reached over WiFi).
+
+### Ansible Vault password
+
+`group_vars/rpi/wireless.yml` above — and any future vault-encrypted
+variable — is decrypted with the vault password you chose when running
+`encrypt_string`. You'll need it for every `make run` that touches
+vault-encrypted content, so store it somewhere retrievable (a password
+manager or secrets vault) rather than relying on memory.
+
+By default you'll be asked for it interactively:
 
 ```sh
 make run ANSIBLE_PLAYBOOK="ansible-playbook --ask-vault-pass"
 ```
 
-If your password manager can print the secret to stdout, you can skip the
-interactive prompt by passing it via `--vault-password-file` instead —
-e.g. with a CLI password manager such as gopass (see "See also"):
+If you'd rather not retype it on every run, point Ansible at a script
+that prints it instead, via the
+[`ANSIBLE_VAULT_PASSWORD_FILE`](https://docs.ansible.com/ansible/latest/reference_appendices/config.html#envvar-ANSIBLE_VAULT_PASSWORD_FILE)
+environment variable. Any password manager with a CLI that can print a
+secret to stdout works; the steps below use
+[gopass](https://www.gopass.pw/) as a concrete example — substitute your
+own tool (1Password CLI, `pass`, etc.) if you use something else.
 
-```sh
-ansible-playbook \
-  --vault-password-file <(gopass show -o <vault-password-secret-name>) \
-  --verbose playbook.yml
-```
+1. Store the vault password in gopass:
 
-The interface comes up on next boot; to bring it up immediately without
-rebooting, run `ifup wlan0` on the Pi (the role does not do this
-automatically, since restarting the interface could drop the very SSH
-session applying the change if the Pi is currently reached over WiFi).
+   ```sh
+   gopass insert Devices/rpi-ansible-vault
+   ```
+
+2. Install [direnv](https://direnv.net/) and hook it into your shell (see
+   its install docs).
+3. Allow this repository's `.envrc` once — it and
+   `scripts/ansible-vault-password.sh` are already committed here:
+
+   ```sh
+   direnv allow
+   ```
+
+From then on, entering this directory exports
+`ANSIBLE_VAULT_PASSWORD_FILE`, and plain `make run` decrypts without
+prompting — no `ANSIBLE_PLAYBOOK` override needed — subject to however
+your password manager caches its own unlock.
 
 ## Serial console connection
 
@@ -188,6 +213,3 @@ Or you can tpye `C-a C-d`.
 
 - [Serial communication over UART Raspberry Pi 4](https://forums.raspberrypi.com/viewtopic.php?t=307094)
 - [rpi-flux](https://github.com/gilbertotcc/rpi-flux)
-- [Ansible Vault: encrypting individual variables](https://docs.ansible.com/ansible/latest/vault_guide/vault_encrypting_content.html#encrypting-individual-variables-with-ansible-vault)
-- [gopass](https://www.gopass.pw/), an example CLI password manager for
-  storing and retrieving the vault password

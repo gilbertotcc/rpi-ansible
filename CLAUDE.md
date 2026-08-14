@@ -28,9 +28,10 @@ or lint configs complete — this is exactly what the `ansible.yaml` CI workflow
 
 Once `group_vars/rpi/wireless.yml` exists (see `roles/wireless` below),
 `make run` needs a vault password to decrypt it:
-`make run ANSIBLE_PLAYBOOK="ansible-playbook --ask-vault-pass"` — see the
-"WiFi network" section of `README.md` for how to store and retrieve that
-password non-interactively.
+`make run ANSIBLE_PLAYBOOK="ansible-playbook --ask-vault-pass"`. With
+`.envrc`/`scripts/ansible-vault-password.sh` set up (direnv + gopass —
+see the "Ansible Vault password" section of `README.md`), plain
+`make run` works with no `ANSIBLE_PLAYBOOK` override.
 
 There is no test suite; correctness is validated via syntax-check + ansible-lint
 (structural/style) and via `conftest` in CI (policy checks against
@@ -72,6 +73,11 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   encryption doesn't have that property (the YAML can't even be parsed
   without the password first) and would break CI. See the "WiFi network"
   section of `README.md` for the exact commands to populate this file.
+- `.envrc` and `scripts/ansible-vault-password.sh` are committed
+  deliberately, not stray local config: together they give non-interactive
+  vault password delivery (`ANSIBLE_VAULT_PASSWORD_FILE`) via direnv +
+  gopass; the script is easy to swap for another password manager (see
+  the "Ansible Vault password" section of `README.md`).
 - Values a role's tasks may need to vary (package lists, the DNS resolver
   package/service name, etc.) live in that role's `defaults/main.yml`
   rather than being hardcoded in `tasks/main.yml`.
