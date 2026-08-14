@@ -46,23 +46,30 @@ configure it.
 ### Prepare the microSD card
 
 Debian GNU/Linux images for Raspberry Pis are available at
-<https://raspi.debian.net/daily-images/>.
+<https://cloud.debian.org/images/cloud/trixie/daily/latest/>.
 
 For RPI4, you can download it with:
 
 ```sh
-curl -OL 'https://raspi.debian.net/daily/raspi_4_bookworm.img.xz'
-curl -OL 'https://raspi.debian.net/daily/raspi_4_bookworm.img.xz.sha256'
+curl -OL 'https://cloud.debian.org/images/cloud/trixie/daily/latest/debian-13-raspi-arm64-daily.tar.xz'
+curl -OL 'https://cloud.debian.org/images/cloud/trixie/daily/latest/SHA512SUMS'
+```
+
+The download is a `.tar.xz` archive wrapping a single raw disk image
+(`disk.raw`); extract it before writing to a microSD card:
+
+```sh
+tar xf debian-13-raspi-arm64-daily.tar.xz
 ```
 
 Then, write the image to a microSD card.
 
-> :information_source: The example below is based on an `xzcat` run on NetBSD,
+> :information_source: The example below is based on a `dd` run on NetBSD,
 > where `sd0` corresponds to the microSD card.
 > You can use equivalent commands on other OSes.
 
 ```sh
-xzcat raspi_4_bookworm.img.xz | dd of=/dev/rsd0 bs=1m
+dd if=disk.raw of=/dev/rsd0 bs=1m
 ```
 
 ### Your first run
