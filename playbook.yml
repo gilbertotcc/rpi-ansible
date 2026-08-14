@@ -9,6 +9,7 @@
 
   roles:
     - role: packages
+    - role: journald
     - role: network
     - role: wireless
     - role: dns_resolver
