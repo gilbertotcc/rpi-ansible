@@ -5,3 +5,6 @@ tls-san:
 {% endfor %}
 disable: metrics-server,traefik
 disable-cloud-controller: true
+kubelet-arg:
+  - "container-log-max-size={{ k3s_kubelet_container_log_max_size }}"
+  - "container-log-max-files={{ k3s_kubelet_container_log_max_files }}"
