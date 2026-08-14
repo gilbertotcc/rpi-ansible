@@ -35,7 +35,8 @@ Software, on the machine you run Ansible from (not the Pi itself):
   `ansible.cfg`).
 
 On the Pi itself, only Python 3 is required beyond the base Debian
-install, for Ansible's modules to run — see "Your first run" below.
+install, for Ansible's modules to run — see
+[Your first run](#your-first-run) below.
 
 ## Board setup
 

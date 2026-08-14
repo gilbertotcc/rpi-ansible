@@ -27,10 +27,10 @@ Run `make check` before considering any change to `playbook.yml`, `roles/*/tasks
 or lint configs complete — this is exactly what the `ansible.yaml` CI workflow runs.
 
 Once `group_vars/rpi/wireless.yml` exists (see `roles/wireless` below),
-`make run` needs a vault password to decrypt it:
-`make run ANSIBLE_PLAYBOOK="ansible-playbook --ask-vault-pass"`. With
+`make run` needs a vault password to decrypt it. With
 `.envrc`/`scripts/ansible-vault-password.sh` set up (direnv + gopass —
-see the "Ansible Vault password" section of `README.md`).
+see the "Ansible Vault password" section of `README.md`), plain
+`make run` works out of the box.
 
 There is no test suite; correctness is validated via syntax-check + ansible-lint
 (structural/style) and via `conftest` in CI (policy checks against
