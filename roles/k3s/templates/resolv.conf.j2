@@ -1,0 +1,3 @@
+{% for nameserver in k3s_kubelet_resolv_conf_nameservers %}
+nameserver {{ nameserver }}
+{% endfor %}

@@ -30,6 +30,15 @@
     owner: root
     group: root
     mode: '0755'
+- name: Populate kubelet resolv.conf override.
+  become: true
+  ansible.builtin.template:
+    src: resolv.conf.j2
+    dest: /etc/rancher/k3s/resolv.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart k3s.
 - name: Populate k3s configuration.
   become: true
   ansible.builtin.template:

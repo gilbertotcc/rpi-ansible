@@ -3,3 +3,11 @@ k3s_tls_san:
   - 10.254.10.8
 k3s_kubelet_container_log_max_size: 10Mi
 k3s_kubelet_container_log_max_files: 3
+# Public, non-loopback resolvers for kubelet's --resolv-conf override (see
+# roles/k3s/tasks/main.yml). k3s cannot use the host's own /etc/resolv.conf
+# (127.0.0.1, see roles/dns_resolver) for pods, and its auto-detected
+# fallback can pick up the LAN router's DNS and DHCP search domain, which
+# leaks into every pod's resolver search path. Pin it explicitly instead.
+k3s_kubelet_resolv_conf_nameservers:
+  - 1.1.1.1
+  - 9.9.9.9
