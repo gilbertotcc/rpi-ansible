@@ -1,0 +1,7 @@
+---
+- name: Restart zram swap.
+  become: true
+  ansible.builtin.systemd:
+    name: systemd-zram-setup@zram0.service
+    daemon_reload: true
+    state: restarted
