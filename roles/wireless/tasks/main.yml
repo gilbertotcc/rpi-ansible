@@ -1,7 +1,6 @@
 ---
 #
-# Setup and configure wireless (WiFi) networking, as an alternative or
-# backup to a wired connection.
+# Setup and configure wireless (WiFi) networking.
 #
 # Uses ifupdown's wpasupplicant integration (wpa-ssid/wpa-psk directives in
 # /etc/network/interfaces.d/wlan0) to bring up wlan0 automatically at boot,
@@ -9,8 +8,10 @@
 #
 # wireless_ssid and wireless_psk are expected to come from an
 # ansible-vault-encrypted group_vars file (see README.md) and must never be
-# stored unencrypted in this repository. The whole role is a no-op unless
-# wireless_enabled is set to true.
+# stored unencrypted in this repository. wireless_enabled defaults to
+# false here as a safe fallback; the committed group_vars/rpi/wireless.yml
+# for this repo's actual host sets it to true, since WiFi is this board's
+# primary network connection.
 #
 # The interface is deliberately never restarted here: if this host is
 # currently reached over wlan0 itself, bouncing it could drop the very SSH

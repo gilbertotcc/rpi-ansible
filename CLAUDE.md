@@ -30,8 +30,7 @@ Once `group_vars/rpi/wireless.yml` exists (see `roles/wireless` below),
 `make run` needs a vault password to decrypt it:
 `make run ANSIBLE_PLAYBOOK="ansible-playbook --ask-vault-pass"`. With
 `.envrc`/`scripts/ansible-vault-password.sh` set up (direnv + gopass —
-see the "Ansible Vault password" section of `README.md`), plain
-`make run` works with no `ANSIBLE_PLAYBOOK` override.
+see the "Ansible Vault password" section of `README.md`).
 
 There is no test suite; correctness is validated via syntax-check + ansible-lint
 (structural/style) and via `conftest` in CI (policy checks against
@@ -45,8 +44,10 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   1. `roles/packages` — apt upgrade everything (gated by `packages_update`)
      and install the package list (`packages_needed_packages`)
   2. `roles/network` — set hostname from `roles/network/files/hostname`
-  3. `roles/wireless` — optionally configure `wlan0` via ifupdown +
-     `wpasupplicant` (`wireless_enabled`, default `false`; no-op otherwise)
+  3. `roles/wireless` — configure `wlan0` via ifupdown + `wpasupplicant`
+     (`wireless_enabled`, defaults to `false` as a safe fallback; the
+     committed `group_vars/rpi/wireless.yml` sets it `true` since WiFi is
+     this board's primary network connection)
   4. `roles/dns_resolver` — install/enable the DNS resolver
      (`dns_resolver_package`/`dns_resolver_service`, default `unbound`),
      point `/etc/resolv.conf` at it
@@ -64,20 +65,12 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
 - Each role's `files/` holds static files pushed verbatim to the Pi via
   `ansible.builtin.copy` (hostname, k3s config, resolv.conf).
 - `wireless_ssid`/`wireless_psk` (used by `roles/wireless`) live in a
-  committed `group_vars/rpi/wireless.yml`, but each value is individually
-  encrypted with `ansible-vault encrypt_string` rather than the whole file
-  being vault-encrypted. This is deliberate: a per-variable `!vault` value
-  is decrypted lazily, only when a task actually templates it — so
-  `yamllint`/`ansible-lint`/`--syntax-check` (i.e. `make check`/CI) can
-  parse the file with **no vault password available at all**. Whole-file
-  encryption doesn't have that property (the YAML can't even be parsed
-  without the password first) and would break CI. See the "WiFi network"
-  section of `README.md` for the exact commands to populate this file.
-- `.envrc` and `scripts/ansible-vault-password.sh` are committed
-  deliberately, not stray local config: together they give non-interactive
-  vault password delivery (`ANSIBLE_VAULT_PASSWORD_FILE`) via direnv +
-  gopass; the script is easy to swap for another password manager (see
-  the "Ansible Vault password" section of `README.md`).
+  committed `group_vars/rpi/wireless.yml`, encrypted per-variable via
+  `ansible-vault encrypt_string` rather than whole-file vault encryption,
+  so `make check`/CI can parse the file with no vault password available.
+  See the "WiFi network" section of `README.md` for the exact commands.
+- `.envrc` and `scripts/ansible-vault-password.sh` give non-interactive vault
+  password delivery (`ANSIBLE_VAULT_PASSWORD_FILE`) via direnv + gopass.
 - Values a role's tasks may need to vary (package lists, the DNS resolver
   package/service name, etc.) live in that role's `defaults/main.yml`
   rather than being hardcoded in `tasks/main.yml`.

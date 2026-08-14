@@ -17,6 +17,26 @@ created this fork.
 This repository includes code that he further added in original codebase to
 keep this project up-to-date and well-maintained.
 
+## Requirements
+
+Hardware:
+
+- A Raspberry Pi 4 Model B with its power supply.
+- A microSD card, and a way to write an image to it (e.g. a card reader
+  on the machine you run Ansible from).
+- Either an HDMI monitor and keyboard for the first boot, or a
+  USB-to-TTL serial cable (see
+  [Serial console connection](#serial-console-connection)).
+
+Software, on the machine you run Ansible from (not the Pi itself):
+
+- [Ansible](https://www.ansible.com/).
+- An SSH client, with a key trusted by the Pi's `root` account (see
+  `ansible.cfg`).
+
+On the Pi itself, only Python 3 is required beyond the base Debian
+install, for Ansible's modules to run — see "Your first run" below.
+
 ## Board setup
 
 The following steps explain how to install a Debian distro on the RPI4 and
@@ -71,9 +91,11 @@ apt install python3
 
 WiFi is configured by the `wireless` Ansible role
 (`roles/wireless/tasks/main.yml`), which installs `wpasupplicant` and
-templates `/etc/network/interfaces.d/wlan0` for you. It is disabled by
-default (`wireless_enabled: false`) so a fresh clone never needs any WiFi
-setup at all.
+templates `/etc/network/interfaces.d/wlan0` for you. For this board, WiFi
+is the primary (often only) network connection, so in practice you'll
+want it enabled. The role itself defaults to `wireless_enabled: false` as
+a safe fallback, so a fresh clone doesn't need any WiFi setup just to
+pass `make check`/lint.
 
 To avoid ever committing the SSID/password in plaintext, both are stored
 as individually
@@ -90,9 +112,9 @@ arguments, keeps them out of your shell history:
 
 ```sh
 ansible-vault encrypt_string --ask-vault-pass --stdin-name 'wireless_ssid'
-# type your network's SSID, then press Ctrl-D
+# type your network's SSID, then press Ctrl-d
 ansible-vault encrypt_string --ask-vault-pass --stdin-name 'wireless_psk'
-# type your network's password, then press Ctrl-D
+# type your network's password, then press Ctrl-d
 ```
 
 Create `group_vars/rpi/wireless.yml` with `wireless_enabled: true` plus the
