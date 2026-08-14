@@ -1,0 +1,4 @@
+---
+journald_system_max_use: 50M
+journald_system_max_file_size: 8M
+journald_max_retention: 1month
