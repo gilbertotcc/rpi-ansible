@@ -1,0 +1,26 @@
+---
+#
+# Configure zram-backed swap via systemd-zram-generator, so this low-RAM
+# board has memory headroom under pressure without writing swap to the
+# microSD, since zram lives entirely in compressed RAM.
+#
+
+- name: Update apt cache if needed.
+  become: true
+  ansible.builtin.apt:
+    cache_valid_time: 3600
+    update_cache: true
+- name: Install systemd-zram-generator if needed.
+  become: true
+  ansible.builtin.apt:
+    name: systemd-zram-generator
+    state: present
+- name: Populate zram-generator configuration.
+  become: true
+  ansible.builtin.template:
+    src: zram-generator.conf.j2
+    dest: /etc/systemd/zram-generator.conf
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart zram swap.
