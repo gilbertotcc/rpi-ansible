@@ -16,26 +16,3 @@ if ! command -v gopass >/dev/null 2>&1; then
 fi
 
 gopass show --password "${GOPASS_SECRET}"
-status=$?
-
-case "${status}" in
-  0) ;;
-  10)
-    echo "error: gopass secret '${GOPASS_SECRET}' not found." >&2
-    echo "Create it with: gopass insert ${GOPASS_SECRET}" >&2
-    ;;
-  11)
-    # gopass has been observed returning 11 both for "not found" and for
-    # actual decrypt failures (e.g. locked GPG key) - don't guess which.
-    echo "error: gopass could not retrieve '${GOPASS_SECRET}'." >&2
-    echo "Either it doesn't exist yet (gopass insert ${GOPASS_SECRET})" >&2
-    echo "or your GPG key needs to be unlocked. Run" >&2
-    echo "'gopass show ${GOPASS_SECRET}' directly to see which." >&2
-    ;;
-  *)
-    echo "error: gopass exited ${status} retrieving '${GOPASS_SECRET}'." >&2
-    echo "Run 'gopass show ${GOPASS_SECRET}' directly to see why." >&2
-    ;;
-esac
-
-exit "${status}"
