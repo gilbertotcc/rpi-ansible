@@ -1,3 +1,5 @@
 ---
 k3s_tls_san:
   - 10.254.10.8
+k3s_kubelet_container_log_max_size: 10Mi
+k3s_kubelet_container_log_max_files: 3

@@ -39,6 +39,7 @@
     group: root
     directory_mode: '0755'
     mode: '0644'
+  notify: Restart k3s.
 - name: Get k3s version if installed.
   become: true
   ansible.builtin.shell:
