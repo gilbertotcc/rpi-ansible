@@ -1,4 +1,6 @@
 allow-hotplug wlan0
-iface wlan0 inet dhcp
+iface wlan0 inet static
+    address 192.168.1.25/27
+    gateway 192.168.1.1
     wpa-ssid {{ wireless_ssid }}
     wpa-psk {{ wireless_psk }}
