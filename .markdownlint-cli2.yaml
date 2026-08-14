@@ -6,9 +6,9 @@ config:
     line_length: 80
     tables: false
     code_blocks: false
-  MD0014: false
-  MD0040: false
-  MD0060:
+  MD014: false
+  MD040: false
+  MD060:
     style: aligned
 
 globs:
