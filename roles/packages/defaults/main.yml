@@ -1,6 +1,7 @@
 ---
 packages_needed_packages:
   - bash-completion
+  - bind9-dnsutils
   - curl
   - htop
   - linux-cpupower
