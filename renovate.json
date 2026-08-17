@@ -7,8 +7,8 @@
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": [
-        "\\.github/workflows/.*\\.ya?ml$"
+      "managerFilePatterns": [
+        "/\\.github/workflows/.*\\.ya?ml$/"
       ],
       "matchStrings": [
         "CONFTEST_VERSION:\\s+\"(?<currentValue>.*)\""
