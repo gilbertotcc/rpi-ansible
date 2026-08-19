@@ -6,8 +6,8 @@ code in this repository.
 ## What this is
 
 Ansible repository that configures personal Raspberry Pi boards on
-Debian stable: a Raspberry Pi 4 (RPI4), plus a Raspberry Pi 3 (RPI3) as
-a second, lighter-weight board. RPI4 also runs a single-node Kubernetes
+Debian stable: a Raspberry Pi 4 (RPi4), plus a Raspberry Pi 3 (RPi3) as
+a second, lighter-weight board. RPi4 also runs a single-node Kubernetes
 cluster powered by [k3s](https://k3s.io/). Forked from
 [iamleot/rpi-ansible](https://github.com/iamleot/rpi-ansible).
 `hosts.ini` defines two groups — `rpi4` and `rpi3` — both connected to
@@ -15,7 +15,7 @@ as `root` (see `ansible.cfg`). `playbook.yml` targets `hosts: all`; most
 roles apply identically to both hosts, but `roles/zram` and `roles/k3s`
 are gated to the `rpi4` group only, via
 `when: inventory_hostname in groups['rpi4']` on those two role entries
-in `playbook.yml`'s `roles:` list — RPI3's more limited hardware runs
+in `playbook.yml`'s `roles:` list — RPi3's more limited hardware runs
 neither zram-backed swap nor a k3s node. Per-host values (hostname,
 WiFi static IP) live in `group_vars/rpi4/` and `group_vars/rpi3/`; WiFi
 SSID/PSK are the same real network for both boards, so they live in
@@ -30,7 +30,7 @@ make check          # runs yamllint + syntax-check + ansible-lint (the full CI g
 make yamllint       # yamllint . 
 make syntax-check   # ansible-playbook --syntax-check against playbook.yml
 make ansible-lint   # ansible-lint
-make run            # ansible-playbook --verbose playbook.yml (applies config to the real RPIs)
+make run            # ansible-playbook --verbose playbook.yml (applies config to the real RPis)
 ```
 
 Run `make check` before considering any change to `playbook.yml`, `roles/*/tasks/*.yml`,
@@ -60,7 +60,7 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
      unbounded on the microSD
   3. `roles/zram` — configure zram-backed swap via
      systemd-zram-generator, giving this low-RAM board memory headroom
-     without writing swap to the microSD (RPI4 only — gated via `when:`
+     without writing swap to the microSD (RPi4 only — gated via `when:`
      in `playbook.yml`)
   4. `roles/network` — set hostname from the `network_hostname` var
      (`group_vars/rpi4/network.yml`, `group_vars/rpi3/network.yml`)
@@ -84,7 +84,7 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
      `creates:` guards)
   8. `roles/k3s` — install/upgrade k3s to the version pinned by
      `k3s_version` in `playbook.yml`, using
-     `roles/k3s/templates/k3s-config.yaml.j2` (RPI4 only — gated via
+     `roles/k3s/templates/k3s-config.yaml.j2` (RPi4 only — gated via
      `when:` in `playbook.yml`)
 - Order matters: later roles assume earlier ones already ran (packages
   installed, hostname set, etc.). When adding a new concern, add a new

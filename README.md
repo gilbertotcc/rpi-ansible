@@ -1,12 +1,12 @@
-# RPI Ansible
+# RPi Ansible
 
 [Ansible](https://www.ansible.com/) repository of personal Kubernetes
 single-node cluster powered by [k3s](https://k3s.io/) on the latest Debian
 stable running on a
 [Raspberry Pi 4 Model B](https://www.raspberrypi.com/products/raspberry-pi-4-model-b/)
-(RPI4), plus a
+(RPi4), plus a
 [Raspberry Pi 3 Model B](https://www.raspberrypi.com/products/raspberry-pi-3-model-b/)
-(RPI3) as a second, lighter-weight board.
+(RPi3) as a second, lighter-weight board.
 
 > :warning: Everything here is done just for fun; things will likely break,
 > readers beware!
@@ -33,7 +33,7 @@ Hardware:
 - Either an HDMI monitor and keyboard for the first boot, or a
   USB-to-TTL serial cable (see
   [Serial console connection](#serial-console-connection)). This
-  applies to RPI4; on RPI3 the serial console is not enabled by
+  applies to RPi4; on RPi3 the serial console is not enabled by
   default, so a monitor and keyboard are mandatory for the first boot
   (see [Your first run](#your-first-run)).
 
@@ -49,14 +49,14 @@ the base Debian install, for Ansible to reach it and run its modules.
 ## Board setup
 
 The following steps explain how to install Debian on either board and
-get it ready for Ansible. Where a step differs between RPI3 and RPI4,
+get it ready for Ansible. Where a step differs between RPi3 and RPi4,
 it's called out explicitly.
 
 ### Prepare the microSD card
 
 Debian GNU/Linux images for Raspberry Pis are available at
 <https://cloud.debian.org/images/cloud/trixie/daily/latest/>. The same
-`raspi-arm64` image works for both RPI4 and RPI3.
+`raspi-arm64` image works for both RPi4 and RPi3.
 
 You can download it with:
 
@@ -86,10 +86,10 @@ sudo dd if=disk.raw of=/dev/disk2 bs=1m status=progress
 During the first boot, log in using an HDMI monitor and an attached
 keyboard.
 
-- On RPI4, you can instead use a
+- On RPi4, you can instead use a
   [serial console connection](#serial-console-connection) from the
   very first boot.
-- On RPI3, the serial console is not enabled by default, so a monitor
+- On RPi3, the serial console is not enabled by default, so a monitor
   and keyboard are required for this first login; it can only be used
   after completing the steps below at least once (see
   [Serial console connection](#serial-console-connection)).
@@ -278,10 +278,10 @@ your password manager caches its own unlock.
 ## Serial console connection
 
 To establish a serial console connection, connect the USB-to-TTL cable
-leads to the GPIO header located on the edge of the board — RPI3 and
-RPI4 share the same 40-pin header and pin layout.
+leads to the GPIO header located on the edge of the board — RPi3 and
+RPi4 share the same 40-pin header and pin layout.
 
-> :information_source: On RPI3, this connection only becomes usable
+> :information_source: On RPi3, this connection only becomes usable
 > after the first boot has been completed via monitor and keyboard —
 > see [Your first run](#your-first-run).
 
