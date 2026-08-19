@@ -22,11 +22,8 @@
 # session applying the change. Reboot, or run `ifup wlan0` manually, to
 # apply a changed configuration.
 #
-# firmware-brcm80211 (WiFi/Bluetooth firmware blobs) and wireless-regdb
-# (regulatory.db) are installed explicitly since not every base image
-# ships them — one board here failed to bring wlan0 up until
-# wireless-regdb was installed and the board rebooted. Both packages are
-# no-ops if the base image already has them.
+# firmware-brcm80211 and wireless-regdb aren't on every base image.
+# Missing wireless-regdb can silently block wpa_supplicant.
 #
 
 - name: Check wireless SSID/PSK/address/gateway are set when enabled.
@@ -40,8 +37,7 @@
     fail_msg: >
       wireless_enabled is true but wireless_ssid, wireless_psk,
       wireless_address and/or wireless_gateway are empty. Populate the
-      SSID/PSK via an ansible-vault-encrypted group_vars file, see
-      README.md; wireless_address/wireless_gateway are plain group_vars.
+      SSID/PSK via an ansible-vault-encrypted group_vars file.
     quiet: true
   when: wireless_enabled
 - name: Update apt cache if needed.
