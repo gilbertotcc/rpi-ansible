@@ -16,9 +16,10 @@ roles apply identically to both hosts, but `roles/zram` and `roles/k3s`
 are gated to the `rpi4` group only, via
 `when: inventory_hostname in groups['rpi4']` on those two role entries
 in `playbook.yml`'s `roles:` list — RPI3's more limited hardware runs
-neither zram-backed swap nor a k3s node. Per-host values (hostname, WiFi
-static IP/SSID/PSK) live in `group_vars/rpi4/` and `group_vars/rpi3/`.
-_Last updated: 2026-08-19._
+neither zram-backed swap nor a k3s node. Per-host values (hostname,
+WiFi static IP) live in `group_vars/rpi4/` and `group_vars/rpi3/`; WiFi
+SSID/PSK are the same real network for both boards, so they live in
+`group_vars/all/` instead. _Last updated: 2026-08-19._
 
 ## Commands
 
@@ -35,9 +36,10 @@ make run            # ansible-playbook --verbose playbook.yml (applies config to
 Run `make check` before considering any change to `playbook.yml`, `roles/*/tasks/*.yml`,
 or lint configs complete — this is exactly what the `ansible.yaml` CI workflow runs.
 
-`group_vars/rpi4/wireless.yml` and `group_vars/rpi3/wireless.yml` hold
-vault-encrypted WiFi credentials (see `roles/wireless` below), so
-`make run` needs a vault password to decrypt them. With
+`group_vars/all/wireless.yml`, `group_vars/rpi4/wireless.yml`, and
+`group_vars/rpi3/wireless.yml` hold vault-encrypted WiFi credentials
+(see `roles/wireless` below), so `make run` needs a vault password to
+decrypt them. With
 `.envrc`/`scripts/ansible-vault-password.sh` set up (direnv + gopass —
 see the "Ansible Vault password" section of `README.md`), plain
 `make run` works out of the box.
@@ -65,9 +67,11 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   5. `roles/wireless` — configure `wlan0` via ifupdown + `wpasupplicant`
      (`wireless_enabled`, defaults to `false` as a safe fallback; both
      `group_vars/rpi4/wireless.yml` and `group_vars/rpi3/wireless.yml`
-     set it `true` and supply `wireless_address`/`wireless_gateway` for
-     that host's static IP, since WiFi is each board's primary network
-     connection). Also installs `ifupdown` itself (some base images run
+     set it `true` and supply that host's static
+     `wireless_address`/`wireless_gateway`, since WiFi is each board's
+     primary network connection; the shared `wireless_ssid`/`wireless_psk`
+     live in `group_vars/all/wireless.yml` instead). Also installs
+     `ifupdown` itself (some base images run
      `systemd-networkd` instead and lack it — installing it only adds a
      `wlan0` stanza, `eth0` stays under `systemd-networkd`),
      `firmware-brcm80211`, and `wireless-regdb` — the latter two aren't
@@ -103,8 +107,8 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   holds Jinja2 files rendered via `ansible.builtin.template` for values
   that vary (journald limits, zram config, wlan0, k3s config).
 - `wireless_ssid`/`wireless_psk` (used by `roles/wireless`) live in
-  committed `group_vars/rpi4/wireless.yml` and
-  `group_vars/rpi3/wireless.yml`, encrypted per-variable via
+  committed `group_vars/all/wireless.yml`, shared by both boards since
+  they're on the same real WiFi network, encrypted per-variable via
   `ansible-vault encrypt_string` rather than whole-file vault encryption,
   so `make check`/CI can parse the file with no vault password available.
   See the "WiFi network" section of `README.md` for the exact commands.
