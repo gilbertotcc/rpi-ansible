@@ -196,14 +196,19 @@ need any WiFi setup just to pass `make check`/lint.
 To avoid ever committing the SSID/password in plaintext, both are stored
 as individually
 [vault-encrypted](https://docs.ansible.com/ansible/latest/vault_guide/vault_encrypting_content.html#encrypting-individual-variables-with-ansible-vault)
-variables in a committed `group_vars/<group>/wireless.yml` file (e.g.
-`group_vars/rpi4/wireless.yml`, `group_vars/rpi3/wireless.yml`).
-Encrypting the SSID too (not just the password) matters if your
-repository is public: a real network name in git history can be
-cross-referenced against wardriving databases (e.g. WiGLE) back to a real
-location. Each host also needs its own plaintext `wireless_address`
-(static IP, CIDR notation) and `wireless_gateway` in the same file — these
-aren't secret, so they don't need vault-encrypting.
+variables. Both boards are on the same real WiFi network, so the SSID
+and PSK live once in a committed `group_vars/all/wireless.yml`, which
+Ansible applies to every host in the inventory; per-host files
+(`group_vars/rpi4/wireless.yml`, `group_vars/rpi3/wireless.yml`) hold
+only `wireless_enabled` plus that host's plaintext `wireless_address`
+(static IP, CIDR notation) and `wireless_gateway` — these aren't secret,
+so they don't need vault-encrypting. Should a board ever join a
+different network, override the SSID/PSK in that host's own
+`group_vars/<group>/wireless.yml`, since Ansible resolves group_vars
+files for more specific groups before `group_vars/all`. Encrypting the
+SSID too (not just the password) matters if your repository is public:
+a real network name in git history can be cross-referenced against
+wardriving databases (e.g. WiGLE) back to a real location.
 
 To set it up, pick a vault password, then generate the two encrypted
 blocks. Reading from stdin, rather than passing the values as command-line
@@ -216,15 +221,11 @@ ansible-vault encrypt_string --ask-vault-pass --stdin-name 'wireless_psk'
 # type your network's password, then press Ctrl-d
 ```
 
-Create (or edit) that host's `group_vars/<group>/wireless.yml` with
-`wireless_enabled: true`, its `wireless_address`/`wireless_gateway`, plus
-the two encrypted blocks output above, e.g.:
+Create (or edit) `group_vars/all/wireless.yml` with the two encrypted
+blocks output above:
 
 ```yaml
 ---
-wireless_enabled: true
-wireless_address: 192.168.1.25/27
-wireless_gateway: 192.168.1.1
 wireless_ssid: !vault |
           $ANSIBLE_VAULT;1.1;AES256
           66386439653236336462626566653063336164663966303231363934653561363...
@@ -233,20 +234,27 @@ wireless_psk: !vault |
           32643361393835653136306164393433656333383761346130336436393730323...
 ```
 
-If two hosts share the same real SSID/PSK, it's safe to copy the same
-encrypted `!vault` blocks into both hosts' files rather than re-running
-`encrypt_string` — decryption only depends on the vault password, not on
-which file or variable the ciphertext is attached to.
+Then create (or edit) each host's `group_vars/<group>/wireless.yml` with
+`wireless_enabled: true` and its `wireless_address`/`wireless_gateway`,
+e.g.:
 
-Commit that file, then apply it as described in "Ansible Vault password"
-below. The interface comes up on next boot; to bring it up immediately
-without rebooting, run `ifup wlan0` on the Pi (the role does not do this
-automatically, since restarting the interface could drop the very SSH
-session applying the change if the Pi is currently reached over WiFi).
+```yaml
+---
+wireless_enabled: true
+wireless_address: 192.168.1.25/27
+wireless_gateway: 192.168.1.1
+```
+
+Commit both files, then apply them as described in "Ansible Vault
+password" below. The interface comes up on next boot; to bring it up
+immediately without rebooting, run `ifup wlan0` on the Pi (the role does
+not do this automatically, since restarting the interface could drop
+the very SSH session applying the change if the Pi is currently reached
+over WiFi).
 
 ### Ansible Vault password
 
-`group_vars/rpi4/wireless.yml` above — and any future vault-encrypted
+`group_vars/all/wireless.yml` above — and any future vault-encrypted
 variable — is decrypted with the vault password you chose when running
 `encrypt_string`. You'll need it for every `make run` that touches
 vault-encrypted content, so store it somewhere retrievable (a password
