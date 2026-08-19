@@ -275,6 +275,42 @@ From then on, entering this directory exports
 prompting — no `ANSIBLE_PLAYBOOK` override needed — subject to however
 your password manager caches its own unlock.
 
+## Expand the microSD root filesystem
+
+The Debian `raspi-arm64` image may boot with a small root partition and leave
+the remaining microSD capacity unallocated. On this image, the root filesystem
+is `/dev/mmcblk0p1` and the boot filesystem is `/dev/mmcblk0p15`.
+
+First, inspect the layout and verify that unallocated space follows `mmcblk0p1`:
+
+```sh
+lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINTS
+parted -s /dev/mmcblk0 unit MiB print free
+```
+
+If `mmcblk0p1` is followed by free space, expand it online:
+
+```sh
+apt update
+apt install -y gdisk cloud-guest-utils
+
+# Repair the GPT backup header after writing a smaller image to a larger card.
+sgdisk -e /dev/mmcblk0
+
+# Grow root partition 1, then its mounted ext4 filesystem.
+growpart /dev/mmcblk0 1
+resize2fs /dev/mmcblk0p1
+
+# Verify the result.
+lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINTS
+df -h /
+```
+
+`growpart` expands a selected partition up to the next partition or the end of
+the disk. It therefore requires free space immediately after `/dev/mmcblk0p1`.
+If it reports `NOCHANGE`, inspect the partition order before proceeding; do not
+resize or move the boot partition without a backup.
+
 ## Serial console connection
 
 To establish a serial console connection, connect the USB-to-TTL cable
@@ -338,3 +374,17 @@ Or you can tpye `C-a C-d`.
 
 - [Serial communication over UART Raspberry Pi 4](https://forums.raspberrypi.com/viewtopic.php?t=307094)
 - [rpi-flux](https://github.com/gilbertotcc/rpi-flux)
+
+Tools used to expand the microSD root filesystem
+(see [Expand the microSD root filesystem](#expand-the-microsd-root-filesystem)):
+
+- [GNU Parted](https://www.gnu.org/software/parted/) — upstream project for
+  `parted`.
+- [GPT fdisk](https://www.rodsbooks.com/gdisk/) — upstream project and
+  documentation for `sgdisk`.
+- [Canonical cloud-utils](https://github.com/canonical/cloud-utils) —
+  upstream source project for `growpart`.
+- [e2fsprogs](https://e2fsprogs.sourceforge.net/) — upstream filesystem
+  utilities project providing `resize2fs`.
+- [util-linux](https://github.com/util-linux/util-linux) — upstream project
+  providing `lsblk`.
