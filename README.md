@@ -4,21 +4,20 @@
 single-node cluster powered by [k3s](https://k3s.io/) on the latest Debian
 stable running on a
 [Raspberry Pi 4 Model B](https://www.raspberrypi.com/products/raspberry-pi-4-model-b/)
-(RPI4), with a
+(RPI4), plus a
 [Raspberry Pi 3 Model B](https://www.raspberrypi.com/products/raspberry-pi-3-model-b/)
-(RPI3) being added as a second board.
+(RPI3) as a second, lighter-weight board.
 
 > :warning: Everything here is done just for fun; things will likely break,
 > readers beware!
 
 <!-- -->
 
-> :construction: Support for a second board (RPI3) is in progress. The
-> manual Debian setup steps below already cover both boards (differences
-> are called out inline), but the Ansible roles are not yet parameterized
-> per host — see the `# rpi4` / `# parameterize` comments in `playbook.yml`
-> and the `[rpi3]` group in `hosts.ini`. Until that lands, only the `rpi4`
-> target is fully working end-to-end.
+> :information_source: Both boards (`[rpi4]` and `[rpi3]` groups in
+> `hosts.ini`) are fully managed by this playbook. RPI3 intentionally
+> skips the `zram` and `k3s` roles (see `playbook.yml`) given its more
+> limited resources — it's a general-purpose Debian box on this network,
+> not a second Kubernetes node.
 > _Last updated: 2026-08-19._
 
 ## Acknoledgements
@@ -180,21 +179,31 @@ ssh -i ~/.ssh/keys/key root@<IP_ADDRESS>
 ### WiFi network
 
 WiFi is configured by the `wireless` Ansible role
-(`roles/wireless/tasks/main.yml`), which installs `wpasupplicant` and
-templates `/etc/network/interfaces.d/wlan0` for you. For this board, WiFi
-is the primary (often only) network connection, so in practice you'll
-want it enabled. The role itself defaults to `wireless_enabled: false` as
-a safe fallback, so a fresh clone doesn't need any WiFi setup just to
-pass `make check`/lint.
+(`roles/wireless/tasks/main.yml`), which installs `ifupdown`,
+`wpasupplicant`, `firmware-brcm80211`, and `wireless-regdb`, then
+templates `/etc/network/interfaces.d/wlan0` for you. Both boards use WiFi
+as their primary (often only) network connection, so in practice you'll
+want it enabled for each. The role itself defaults to
+`wireless_enabled: false` as a safe fallback, so a fresh clone doesn't
+need any WiFi setup just to pass `make check`/lint.
+
+> :information_source: `firmware-brcm80211`/`wireless-regdb` aren't
+> guaranteed present on every base image. Missing `wireless-regdb` in
+> particular can make `wpa_supplicant` fail to bring the interface up at
+> all (`ifup wlan0` fails with "daemon failed to start") — the role
+> installs both explicitly so this doesn't need debugging per board.
 
 To avoid ever committing the SSID/password in plaintext, both are stored
 as individually
 [vault-encrypted](https://docs.ansible.com/ansible/latest/vault_guide/vault_encrypting_content.html#encrypting-individual-variables-with-ansible-vault)
-variables in a committed `group_vars/rpi4/wireless.yml` file. Encrypting
-the SSID too (not just the password) matters if your
+variables in a committed `group_vars/<group>/wireless.yml` file (e.g.
+`group_vars/rpi4/wireless.yml`, `group_vars/rpi3/wireless.yml`).
+Encrypting the SSID too (not just the password) matters if your
 repository is public: a real network name in git history can be
 cross-referenced against wardriving databases (e.g. WiGLE) back to a real
-location.
+location. Each host also needs its own plaintext `wireless_address`
+(static IP, CIDR notation) and `wireless_gateway` in the same file — these
+aren't secret, so they don't need vault-encrypting.
 
 To set it up, pick a vault password, then generate the two encrypted
 blocks. Reading from stdin, rather than passing the values as command-line
@@ -207,12 +216,15 @@ ansible-vault encrypt_string --ask-vault-pass --stdin-name 'wireless_psk'
 # type your network's password, then press Ctrl-d
 ```
 
-Create `group_vars/rpi4/wireless.yml` with `wireless_enabled: true` plus the
-two blocks output above, e.g.:
+Create (or edit) that host's `group_vars/<group>/wireless.yml` with
+`wireless_enabled: true`, its `wireless_address`/`wireless_gateway`, plus
+the two encrypted blocks output above, e.g.:
 
 ```yaml
 ---
 wireless_enabled: true
+wireless_address: 192.168.1.25/27
+wireless_gateway: 192.168.1.1
 wireless_ssid: !vault |
           $ANSIBLE_VAULT;1.1;AES256
           66386439653236336462626566653063336164663966303231363934653561363...
@@ -220,6 +232,11 @@ wireless_psk: !vault |
           $ANSIBLE_VAULT;1.1;AES256
           32643361393835653136306164393433656333383761346130336436393730323...
 ```
+
+If two hosts share the same real SSID/PSK, it's safe to copy the same
+encrypted `!vault` blocks into both hosts' files rather than re-running
+`encrypt_string` — decryption only depends on the vault password, not on
+which file or variable the ciphertext is attached to.
 
 Commit that file, then apply it as described in "Ansible Vault password"
 below. The interface comes up on next boot; to bring it up immediately
