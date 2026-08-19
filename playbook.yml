@@ -9,10 +9,18 @@
 
   roles:
     - role: packages
+      tags: packages
     - role: journald
+      tags: journald
     - role: zram     # rpi4
-    - role: network  # parameterize hostname
+      tags: zram
+    - role: network
+      tags: network
     - role: wireless  # wlan0.j2 parameterize IP address
+      tags: wireless
     - role: dns_resolver
+      tags: dns_resolver
     - role: wireguard
+      tags: wireguard
     - role: k3s
+      tags: k3s
