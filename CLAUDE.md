@@ -5,10 +5,10 @@ code in this repository.
 
 ## What this is
 
-Ansible repository that configures a personal Kubernetes single-node
-cluster (powered by [k3s](https://k3s.io/)) on Debian stable, running on
-a Raspberry Pi 4 (RPI4) plus a Raspberry Pi 3 (RPI3) as a second,
-lighter-weight board. Forked from
+Ansible repository that configures personal Raspberry Pi boards on
+Debian stable: a Raspberry Pi 4 (RPI4), plus a Raspberry Pi 3 (RPI3) as
+a second, lighter-weight board. RPI4 also runs a single-node Kubernetes
+cluster powered by [k3s](https://k3s.io/). Forked from
 [iamleot/rpi-ansible](https://github.com/iamleot/rpi-ansible).
 `hosts.ini` defines two groups — `rpi4` and `rpi3` — both connected to
 as `root` (see `ansible.cfg`). `playbook.yml` targets `hosts: all`; most
