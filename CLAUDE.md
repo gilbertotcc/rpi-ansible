@@ -6,10 +6,15 @@ code in this repository.
 ## What this is
 
 Ansible repository that configures a personal single-node Kubernetes cluster
-(powered by [k3s](https://k3s.io/)) on a Raspberry Pi 4 running Debian stable.
-Forked from [iamleot/rpi-ansible](https://github.com/iamleot/rpi-ansible).
-There is exactly one target host, defined in `hosts.ini`, connected to as
-`root` (see `ansible.cfg`).
+(powered by [k3s](https://k3s.io/)) on Debian stable running on a Raspberry
+Pi 4 (RPI4). Forked from
+[iamleot/rpi-ansible](https://github.com/iamleot/rpi-ansible).
+`hosts.ini` currently defines two groups — `rpi` (RPI4) and `rpi3` (a
+Raspberry Pi 3, work in progress) — both connected to as `root` (see
+`ansible.cfg`). `playbook.yml` targets `hosts: all`, but several roles
+are not yet parameterized per host (see `# rpi4` / `# parameterize`
+comments in `playbook.yml`), so `rpi` is the only fully-working target
+today. _Last updated: 2026-08-19._
 
 ## Commands
 
@@ -43,19 +48,25 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   responsible for one concern:
   1. `roles/packages` — apt upgrade everything (gated by `packages_update`)
      and install the package list (`packages_needed_packages`)
-  2. `roles/network` — set hostname from `roles/network/files/hostname`
-  3. `roles/wireless` — configure `wlan0` via ifupdown + `wpasupplicant`
+  2. `roles/journald` — cap journald's on-disk footprint via
+     `roles/journald/templates/journald.conf.j2`, so logs don't grow
+     unbounded on the microSD
+  3. `roles/zram` — configure zram-backed swap via
+     systemd-zram-generator, giving this low-RAM board memory headroom
+     without writing swap to the microSD
+  4. `roles/network` — set hostname from `roles/network/files/hostname`
+  5. `roles/wireless` — configure `wlan0` via ifupdown + `wpasupplicant`
      (`wireless_enabled`, defaults to `false` as a safe fallback; the
      committed `group_vars/rpi/wireless.yml` sets it `true` since WiFi is
      this board's primary network connection)
-  4. `roles/dns_resolver` — install/enable the DNS resolver
+  6. `roles/dns_resolver` — install/enable the DNS resolver
      (`dns_resolver_package`/`dns_resolver_service`, default `unbound`),
      point `/etc/resolv.conf` at it
-  5. `roles/wireguard` — install WireGuard, generate keys idempotently (uses
+  7. `roles/wireguard` — install WireGuard, generate keys idempotently (uses
      `creates:` guards)
-  6. `roles/k3s` — install/upgrade k3s to the version pinned by
+  8. `roles/k3s` — install/upgrade k3s to the version pinned by
      `k3s_version` in `playbook.yml`, using
-     `roles/k3s/files/k3s-config.yaml`
+     `roles/k3s/templates/k3s-config.yaml.j2`
 - Order matters: later roles assume earlier ones already ran (packages
   installed, hostname set, etc.). When adding a new concern, add a new
   `roles/<name>/` directory (with `tasks/main.yml` and, as needed,
@@ -63,7 +74,9 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   `playbook.yml`'s `roles:` list in the appropriate position, rather than
   growing an existing role's tasks with unrelated work.
 - Each role's `files/` holds static files pushed verbatim to the Pi via
-  `ansible.builtin.copy` (hostname, k3s config, resolv.conf).
+  `ansible.builtin.copy` (hostname, resolv.conf); `templates/` holds
+  Jinja2 files rendered via `ansible.builtin.template` for values that
+  vary (journald limits, zram config, wlan0, k3s config).
 - `wireless_ssid`/`wireless_psk` (used by `roles/wireless`) live in a
   committed `group_vars/rpi/wireless.yml`, encrypted per-variable via
   `ansible-vault encrypt_string` rather than whole-file vault encryption,

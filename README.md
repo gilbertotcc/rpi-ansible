@@ -4,10 +4,22 @@
 single-node cluster powered by [k3s](https://k3s.io/) on the latest Debian
 stable running on a
 [Raspberry Pi 4 Model B](https://www.raspberrypi.com/products/raspberry-pi-4-model-b/)
-(RPI4).
+(RPI4), with a
+[Raspberry Pi 3 Model B](https://www.raspberrypi.com/products/raspberry-pi-3-model-b/)
+(RPI3) being added as a second board.
 
 > :warning: Everything here is done just for fun; things will likely break,
 > readers beware!
+
+<!-- -->
+
+> :construction: Support for a second board (RPI3) is in progress. The
+> manual Debian setup steps below already cover both boards (differences
+> are called out inline), but the Ansible roles are not yet parameterized
+> per host — see the `# rpi4` / `# parameterize` comments in `playbook.yml`
+> and the `[rpi3]` group in `hosts.ini`. Until that lands, only the `rpi`
+> (RPI4) target is fully working end-to-end.
+> _Last updated: 2026-08-19._
 
 ## Acknoledgements
 
@@ -21,34 +33,43 @@ keep this project up-to-date and well-maintained.
 
 Hardware:
 
-- A Raspberry Pi 4 Model B with its power supply.
+- A
+  [Raspberry Pi 4 Model B](https://www.raspberrypi.com/products/raspberry-pi-4-model-b/)
+  or
+  [Raspberry Pi 3 Model B](https://www.raspberrypi.com/products/raspberry-pi-3-model-b/)
+  with its power supply.
 - A microSD card, and a way to write an image to it (e.g. a card reader
   on the machine you run Ansible from).
 - Either an HDMI monitor and keyboard for the first boot, or a
   USB-to-TTL serial cable (see
-  [Serial console connection](#serial-console-connection)).
+  [Serial console connection](#serial-console-connection)). This
+  applies to RPI4; on RPI3 the serial console is not enabled by
+  default, so a monitor and keyboard are mandatory for the first boot
+  (see [Your first run](#your-first-run)).
 
 Software, on the machine you run Ansible from (not the Pi itself):
 
 - [Ansible](https://www.ansible.com/).
 - An SSH client, with a key trusted by the Pi's `root` account (see
-  `ansible.cfg`).
+  [Your first run](#your-first-run) for how to install and trust it).
 
-On the Pi itself, only Python 3 is required beyond the base Debian
-install, for Ansible's modules to run — see
-[Your first run](#your-first-run) below.
+On the Pi itself, only Python 3 and an SSH server are required beyond
+the base Debian install, for Ansible to reach it and run its modules
+— see [Your first run](#your-first-run) below.
 
 ## Board setup
 
-The following steps explain how to install a Debian distro on the RPI4 and
-configure it.
+The following steps explain how to install Debian on either board and
+get it ready for Ansible. Where a step differs between RPI3 and RPI4,
+it's called out explicitly.
 
 ### Prepare the microSD card
 
 Debian GNU/Linux images for Raspberry Pis are available at
-<https://cloud.debian.org/images/cloud/trixie/daily/latest/>.
+<https://cloud.debian.org/images/cloud/trixie/daily/latest/>. The same
+`raspi-arm64` image works for both RPI4 and RPI3.
 
-For RPI4, you can download it with:
+You can download it with:
 
 ```sh
 curl -OL 'https://cloud.debian.org/images/cloud/trixie/daily/latest/debian-13-raspi-arm64-daily.tar.xz'
@@ -62,35 +83,96 @@ The download is a `.tar.xz` archive wrapping a single raw disk image
 tar xf debian-13-raspi-arm64-daily.tar.xz
 ```
 
-Then, write the image to a microSD card.
+Then, write the image to a microSD card. Example commands for two
+common host OSes are below; adapt the device path for yours.
 
-> :information_source: The example below is based on a `dd` run on NetBSD,
-> where `sd0` corresponds to the microSD card.
-> You can use equivalent commands on other OSes.
+On NetBSD, where `sd0` corresponds to the microSD card:
 
 ```sh
 dd if=disk.raw of=/dev/rsd0 bs=1m
 ```
 
+On macOS:
+
+```sh
+diskutil list                      # find the card's device, e.g. disk2
+diskutil unmountDisk /dev/disk2
+sudo dd if=disk.raw of=/dev/disk2 bs=1m status=progress
+```
+
 ### Your first run
 
-During the first boot, you need to use an HDMI monitor and an attached keyboard.
-Alternatively, you can use a
-[serial console connection](#serial-console-connection).
+During the first boot, log in using an HDMI monitor and an attached
+keyboard.
 
-You can login as `root`, it does not have any password.
+- On RPI4, you can instead use a
+  [serial console connection](#serial-console-connection) from the
+  very first boot.
+- On RPI3, the serial console is not enabled by default, so a monitor
+  and keyboard are required for this first login; it can only be used
+  after completing the steps below at least once (see
+  [Serial console connection](#serial-console-connection)).
 
-Once you've logged in, at first, upgrade all the packages:
+The first-boot setup process prompts you to configure a timezone (safe
+to skip) and to set a root password — do set one here.
+
+> :warning: Do not leave the root password blank. This image's
+> installer does not create any regular user account, and Debian's
+> usual convention is that leaving root's password blank at install
+> time is precisely what triggers automatically installing and
+> granting `sudo` to a created user account. Since no such user exists
+> here, leaving root's password unset means
+> **no account will ever be able to log in again**. See
+> <https://lists.debian.org/debian-user/2025/04/msg00244.html> for the
+> underlying explanation.
+
+Once set, login as `root` with the password you just chose.
+
+Once logged in, check the board's IP address — you'll need it for the
+SSH steps below and for `hosts.ini`:
+
+```sh
+ip addr show
+```
+
+Then, upgrade all the packages:
 
 ```sh
 apt update
 apt upgrade
 ```
 
-Then, install Python that is required to use Ansible:
+Then, install Python and an SSH server, both required for Ansible to
+manage the board:
 
 ```sh
-apt install python3
+apt install python3 openssh-server
+```
+
+Permit root login over SSH by setting the following in
+`/etc/ssh/sshd_config`:
+
+```none
+PermitRootLogin yes
+```
+
+then restart the service:
+
+```sh
+systemctl restart ssh
+```
+
+Finally, from the machine you run Ansible from, trust your SSH key on
+the board:
+
+```sh
+ssh-copy-id -i ~/.ssh/keys/key.pub root@<IP_ADDRESS>
+```
+
+and verify the login works:
+
+```sh
+ssh -i ~/.ssh/keys/key root@<IP_ADDRESS>
 ```
 
 ## Manual configurations
@@ -189,13 +271,20 @@ your password manager caches its own unlock.
 
 ## Serial console connection
 
-To establish a serial console connection, connect the USB-to-TTL cable leads to
-the GPIO header located on the edge of the RPI4 board.
+To establish a serial console connection, connect the USB-to-TTL cable
+leads to the GPIO header located on the edge of the board — RPI3 and
+RPI4 share the same 40-pin header and pin layout.
+
+> :information_source: On RPI3, this connection only becomes usable
+> after the first boot has been completed via monitor and keyboard —
+> see [Your first run](#your-first-run).
+
+<!-- -->
 
 > :warning: DO NOT connect the Red (5V) wire.
 > Connecting it will damage the board.
 
-The connection requires a *crossover* configuration: The cable's Receiver (RX)
+The connection requires a _crossover_ configuration: The cable's Receiver (RX)
 connects to the Pi's Transmitter (TX), and vice versa.
 
 | Wire Color | Cable Function | Connect to Pi Pin | Pi Pin Function | Description                                           |
@@ -205,7 +294,7 @@ connects to the Pi's Transmitter (TX), and vice versa.
 | **White**  | RX (Receive)   | **Pin 8**         | GPIO 14 (TXD)   | Pi transmits data → Cable receives                    |
 | **Green**  | TX (Transmit)  | **Pin 10**        | GPIO 15 (RXD)   | Cable transmits data → Pi receives                    |
 
-The diagram below represents the top-left corner of the Raspberry Pi 4 GPIO
+The diagram below represents the top-left corner of the Pi's GPIO
 header (the end closest to the SD card slot).
 Connections are made to the outer row of pins.
 
