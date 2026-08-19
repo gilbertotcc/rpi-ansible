@@ -9,8 +9,7 @@
     that:
       - network_hostname | length > 0
     fail_msg: >
-      network_hostname is empty. Set it via a group_vars file, see
-      group_vars/rpi4/network.yml and group_vars/rpi3/network.yml.
+      network_hostname is empty. Set it via a group_vars file.
     quiet: true
 - name: Set hostname.
   become: true
