@@ -1,6 +1,11 @@
 ---
+# wireless_ssid and wireless_psk are the same real WiFi network as rpi4
+# (see group_vars/rpi4/wireless.yml), so the encrypted blocks are copied
+# as-is rather than re-running ansible-vault encrypt_string — decryption
+# only depends on the vault password, not the file/var they're attached
+# to.
 wireless_enabled: true
-wireless_address: 192.168.1.25/27
+wireless_address: 192.168.1.24/27
 wireless_gateway: 192.168.1.1
 wireless_ssid: !vault |
           $ANSIBLE_VAULT;1.1;AES256

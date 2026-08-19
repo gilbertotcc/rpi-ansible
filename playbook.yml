@@ -16,7 +16,7 @@
       tags: zram
     - role: network
       tags: network
-    - role: wireless  # wlan0.j2 parameterize IP address
+    - role: wireless
       tags: wireless
     - role: dns_resolver
       tags: dns_resolver

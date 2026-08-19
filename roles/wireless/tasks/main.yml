@@ -4,7 +4,11 @@
 #
 # Uses ifupdown's wpasupplicant integration (wpa-ssid/wpa-psk directives in
 # /etc/network/interfaces.d/wlan0) to bring up wlan0 automatically at boot,
-# following <https://wiki.debian.org/WiFi/HowToUse>.
+# following <https://wiki.debian.org/WiFi/HowToUse>. ifupdown is installed
+# explicitly below since some hosts' base image manages networking via
+# systemd-networkd instead and don't have it; installing it only adds a
+# wlan0 stanza to /etc/network/interfaces.d, so it never touches other
+# interfaces already managed by systemd-networkd (e.g. eth0).
 #
 # wireless_ssid and wireless_psk are expected to come from an
 # ansible-vault-encrypted group_vars file (see README.md) and must never be
@@ -18,17 +22,26 @@
 # session applying the change. Reboot, or run `ifup wlan0` manually, to
 # apply a changed configuration.
 #
+# firmware-brcm80211 (WiFi/Bluetooth firmware blobs) and wireless-regdb
+# (regulatory.db) are installed explicitly since not every base image
+# ships them — one board here failed to bring wlan0 up until
+# wireless-regdb was installed and the board rebooted. Both packages are
+# no-ops if the base image already has them.
+#
 
-- name: Check wireless_ssid and wireless_psk are set when enabled.
+- name: Check wireless SSID/PSK/address/gateway are set when enabled.
   delegate_to: localhost
   ansible.builtin.assert:
     that:
       - wireless_ssid | length > 0
       - wireless_psk | length > 0
+      - wireless_address | length > 0
+      - wireless_gateway | length > 0
     fail_msg: >
-      wireless_enabled is true but wireless_ssid and/or wireless_psk are
-      empty. Populate them via an ansible-vault-encrypted group_vars file,
-      see README.md.
+      wireless_enabled is true but wireless_ssid, wireless_psk,
+      wireless_address and/or wireless_gateway are empty. Populate the
+      SSID/PSK via an ansible-vault-encrypted group_vars file, see
+      README.md; wireless_address/wireless_gateway are plain group_vars.
     quiet: true
   when: wireless_enabled
 - name: Update apt cache if needed.
@@ -37,11 +50,38 @@
     cache_valid_time: 3600
     update_cache: true
   when: wireless_enabled
+- name: Install ifupdown if needed.
+  become: true
+  ansible.builtin.apt:
+    name: ifupdown
+    state: present
+  when: wireless_enabled
 - name: Install wpasupplicant if needed.
   become: true
   ansible.builtin.apt:
     name: wpasupplicant
     state: present
+  when: wireless_enabled
+- name: Install firmware-brcm80211 if needed.
+  become: true
+  ansible.builtin.apt:
+    name: firmware-brcm80211
+    state: present
+  when: wireless_enabled
+- name: Install wireless-regdb if needed.
+  become: true
+  ansible.builtin.apt:
+    name: wireless-regdb
+    state: present
+  when: wireless_enabled
+- name: Ensure /etc/network/interfaces.d exists.
+  become: true
+  ansible.builtin.file:
+    path: /etc/network/interfaces.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
   when: wireless_enabled
 - name: Populate wireless interface configuration.
   become: true

@@ -2,3 +2,5 @@
 wireless_enabled: false
 wireless_ssid: ""
 wireless_psk: ""
+wireless_address: ""
+wireless_gateway: ""
