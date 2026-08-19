@@ -9,7 +9,7 @@
 # wireless_ssid and wireless_psk are expected to come from an
 # ansible-vault-encrypted group_vars file (see README.md) and must never be
 # stored unencrypted in this repository. wireless_enabled defaults to
-# false here as a safe fallback; the committed group_vars/rpi/wireless.yml
+# false here as a safe fallback; the committed group_vars/rpi4/wireless.yml
 # for this repo's actual host sets it to true, since WiFi is this board's
 # primary network connection.
 #
