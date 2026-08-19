@@ -25,3 +25,4 @@
       tags: wireguard
     - role: k3s
       tags: k3s
+      when: inventory_hostname in groups['rpi4']
