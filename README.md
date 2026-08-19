@@ -11,15 +11,6 @@ stable running on a
 > :warning: Everything here is done just for fun; things will likely break,
 > readers beware!
 
-<!-- -->
-
-> :information_source: Both boards (`[rpi4]` and `[rpi3]` groups in
-> `hosts.ini`) are fully managed by this playbook. RPI3 intentionally
-> skips the `zram` and `k3s` roles (see `playbook.yml`) given its more
-> limited resources — it's a general-purpose Debian box on this network,
-> not a second Kubernetes node.
-> _Last updated: 2026-08-19._
-
 ## Acknoledgements
 
 I thank @iamleot for his work
@@ -53,8 +44,7 @@ Software, on the machine you run Ansible from (not the Pi itself):
   [Your first run](#your-first-run) for how to install and trust it).
 
 On the Pi itself, only Python 3 and an SSH server are required beyond
-the base Debian install, for Ansible to reach it and run its modules
-— see [Your first run](#your-first-run) below.
+the base Debian install, for Ansible to reach it and run its modules.
 
 ## Board setup
 
@@ -82,16 +72,8 @@ The download is a `.tar.xz` archive wrapping a single raw disk image
 tar xf debian-13-raspi-arm64-daily.tar.xz
 ```
 
-Then, write the image to a microSD card. Example commands for two
-common host OSes are below; adapt the device path for yours.
-
-On NetBSD, where `sd0` corresponds to the microSD card:
-
-```sh
-dd if=disk.raw of=/dev/rsd0 bs=1m
-```
-
-On macOS:
+Then, write the image to a microSD card; adapt the device path for
+yours. On macOS:
 
 ```sh
 diskutil list                      # find the card's device, e.g. disk2
@@ -111,6 +93,11 @@ keyboard.
   and keyboard are required for this first login; it can only be used
   after completing the steps below at least once (see
   [Serial console connection](#serial-console-connection)).
+
+> :information_source: Connect the board to your router over Ethernet
+> for this section. WiFi is not configured until the `wireless` role
+> runs (see [WiFi network](#wifi-network)), so a wired connection is
+> what gets you online for the package/SSH setup below.
 
 The first-boot setup process prompts you to configure a timezone (safe
 to skip) and to set a root password — do set one here.
@@ -186,12 +173,6 @@ as their primary (often only) network connection, so in practice you'll
 want it enabled for each. The role itself defaults to
 `wireless_enabled: false` as a safe fallback, so a fresh clone doesn't
 need any WiFi setup just to pass `make check`/lint.
-
-> :information_source: `firmware-brcm80211`/`wireless-regdb` aren't
-> guaranteed present on every base image. Missing `wireless-regdb` in
-> particular can make `wpa_supplicant` fail to bring the interface up at
-> all (`ifup wlan0` fails with "daemon failed to start") — the role
-> installs both explicitly so this doesn't need debugging per board.
 
 To avoid ever committing the SSID/password in plaintext, both are stored
 as individually
