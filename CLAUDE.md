@@ -88,11 +88,6 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   `defaults/main.yml`, `files/`, `meta/main.yml`) and reference it from
   `playbook.yml`'s `roles:` list in the appropriate position, rather than
   growing an existing role's tasks with unrelated work.
-- Every role entry in `playbook.yml`'s `roles:` list carries a
-  `tags: <role_name>` matching its own name, so a single role can be
-  dry-run/applied in isolation (`ansible-playbook playbook.yml --limit
-  <host> --tags <role_name>`) without touching the rest of the play —
-  useful when validating a per-host change against real hardware.
 - A role that needs to behave differently per host (not just per group)
   gates itself with `when: inventory_hostname in groups['<group>']` on
   its `roles:` list entry (see `zram`/`k3s` above) rather than an

@@ -9,20 +9,12 @@
 
   roles:
     - role: packages
-      tags: packages
     - role: journald
-      tags: journald
     - role: zram
-      tags: zram
       when: inventory_hostname in groups['rpi4']
     - role: network
-      tags: network
     - role: wireless
-      tags: wireless
     - role: dns_resolver
-      tags: dns_resolver
     - role: wireguard
-      tags: wireguard
     - role: k3s
-      tags: k3s
       when: inventory_hostname in groups['rpi4']
