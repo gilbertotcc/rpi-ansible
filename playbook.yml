@@ -1,5 +1,5 @@
 ---
-- name: Configure RPi boards
+- name: Configure RPI boards
   hosts: all
 
   vars:

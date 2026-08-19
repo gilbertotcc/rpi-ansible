@@ -5,16 +5,20 @@ code in this repository.
 
 ## What this is
 
-Ansible repository that configures a personal single-node Kubernetes cluster
-(powered by [k3s](https://k3s.io/)) on Debian stable running on a Raspberry
-Pi 4 (RPI4). Forked from
+Ansible repository that configures a personal Kubernetes single-node
+cluster (powered by [k3s](https://k3s.io/)) on Debian stable, running on
+a Raspberry Pi 4 (RPI4) plus a Raspberry Pi 3 (RPI3) as a second,
+lighter-weight board. Forked from
 [iamleot/rpi-ansible](https://github.com/iamleot/rpi-ansible).
-`hosts.ini` currently defines two groups — `rpi4` (RPI4) and `rpi3` (a
-Raspberry Pi 3, work in progress) — both connected to as `root` (see
-`ansible.cfg`). `playbook.yml` targets `hosts: all`, but several roles
-are not yet parameterized per host (see `# rpi4` / `# parameterize`
-comments in `playbook.yml`), so `rpi4` is the only fully-working target
-today. _Last updated: 2026-08-19._
+`hosts.ini` defines two groups — `rpi4` and `rpi3` — both connected to
+as `root` (see `ansible.cfg`). `playbook.yml` targets `hosts: all`; most
+roles apply identically to both hosts, but `roles/zram` and `roles/k3s`
+are gated to the `rpi4` group only, via
+`when: inventory_hostname in groups['rpi4']` on those two role entries
+in `playbook.yml`'s `roles:` list — RPI3's more limited hardware runs
+neither zram-backed swap nor a k3s node. Per-host values (hostname, WiFi
+static IP/SSID/PSK) live in `group_vars/rpi4/` and `group_vars/rpi3/`.
+_Last updated: 2026-08-19._
 
 ## Commands
 
@@ -25,14 +29,15 @@ make check          # runs yamllint + syntax-check + ansible-lint (the full CI g
 make yamllint       # yamllint . 
 make syntax-check   # ansible-playbook --syntax-check against playbook.yml
 make ansible-lint   # ansible-lint
-make run            # ansible-playbook --verbose playbook.yml (applies config to the real RPI)
+make run            # ansible-playbook --verbose playbook.yml (applies config to the real RPIs)
 ```
 
 Run `make check` before considering any change to `playbook.yml`, `roles/*/tasks/*.yml`,
 or lint configs complete — this is exactly what the `ansible.yaml` CI workflow runs.
 
-Once `group_vars/rpi4/wireless.yml` exists (see `roles/wireless` below),
-`make run` needs a vault password to decrypt it. With
+`group_vars/rpi4/wireless.yml` and `group_vars/rpi3/wireless.yml` hold
+vault-encrypted WiFi credentials (see `roles/wireless` below), so
+`make run` needs a vault password to decrypt them. With
 `.envrc`/`scripts/ansible-vault-password.sh` set up (direnv + gopass —
 see the "Ansible Vault password" section of `README.md`), plain
 `make run` works out of the box.
@@ -53,12 +58,21 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
      unbounded on the microSD
   3. `roles/zram` — configure zram-backed swap via
      systemd-zram-generator, giving this low-RAM board memory headroom
-     without writing swap to the microSD
-  4. `roles/network` — set hostname from `roles/network/files/hostname`
+     without writing swap to the microSD (RPI4 only — gated via `when:`
+     in `playbook.yml`)
+  4. `roles/network` — set hostname from the `network_hostname` var
+     (`group_vars/rpi4/network.yml`, `group_vars/rpi3/network.yml`)
   5. `roles/wireless` — configure `wlan0` via ifupdown + `wpasupplicant`
-     (`wireless_enabled`, defaults to `false` as a safe fallback; the
-     committed `group_vars/rpi4/wireless.yml` sets it `true` since WiFi is
-     this board's primary network connection)
+     (`wireless_enabled`, defaults to `false` as a safe fallback; both
+     `group_vars/rpi4/wireless.yml` and `group_vars/rpi3/wireless.yml`
+     set it `true` and supply `wireless_address`/`wireless_gateway` for
+     that host's static IP, since WiFi is each board's primary network
+     connection). Also installs `ifupdown` itself (some base images run
+     `systemd-networkd` instead and lack it — installing it only adds a
+     `wlan0` stanza, `eth0` stays under `systemd-networkd`),
+     `firmware-brcm80211`, and `wireless-regdb` — the latter two aren't
+     guaranteed present on every base image, and their absence can
+     silently prevent `wpa_supplicant` from bringing the interface up.
   6. `roles/dns_resolver` — install/enable the DNS resolver
      (`dns_resolver_package`/`dns_resolver_service`, default `unbound`),
      point `/etc/resolv.conf` at it
@@ -66,19 +80,36 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
      `creates:` guards)
   8. `roles/k3s` — install/upgrade k3s to the version pinned by
      `k3s_version` in `playbook.yml`, using
-     `roles/k3s/templates/k3s-config.yaml.j2`
+     `roles/k3s/templates/k3s-config.yaml.j2` (RPI4 only — gated via
+     `when:` in `playbook.yml`)
 - Order matters: later roles assume earlier ones already ran (packages
   installed, hostname set, etc.). When adding a new concern, add a new
   `roles/<name>/` directory (with `tasks/main.yml` and, as needed,
   `defaults/main.yml`, `files/`, `meta/main.yml`) and reference it from
   `playbook.yml`'s `roles:` list in the appropriate position, rather than
   growing an existing role's tasks with unrelated work.
+- Every role entry in `playbook.yml`'s `roles:` list carries a
+  `tags: <role_name>` matching its own name, so a single role can be
+  dry-run/applied in isolation (`ansible-playbook playbook.yml --limit
+  <host> --tags <role_name>`) without touching the rest of the play —
+  useful when validating a per-host change against real hardware.
+- A role that needs to behave differently per host (not just per group)
+  gates itself with `when: inventory_hostname in groups['<group>']` on
+  its `roles:` list entry (see `zram`/`k3s` above) rather than an
+  in-role conditional, keeping the host/group logic visible in one place.
+- A role that requires a value to be explicitly set per host (rather than
+  falling back to a shared default) defines it as an empty string in
+  `defaults/main.yml` and asserts it's non-empty as its first task
+  (`delegate_to: localhost`, see `roles/network` and `roles/wireless`) —
+  this fails fast with a clear message instead of silently applying an
+  empty/wrong value.
 - Each role's `files/` holds static files pushed verbatim to the Pi via
-  `ansible.builtin.copy` (hostname, resolv.conf); `templates/` holds
-  Jinja2 files rendered via `ansible.builtin.template` for values that
-  vary (journald limits, zram config, wlan0, k3s config).
-- `wireless_ssid`/`wireless_psk` (used by `roles/wireless`) live in a
-  committed `group_vars/rpi4/wireless.yml`, encrypted per-variable via
+  `ansible.builtin.copy` (currently just `resolv.conf`); `templates/`
+  holds Jinja2 files rendered via `ansible.builtin.template` for values
+  that vary (journald limits, zram config, wlan0, k3s config).
+- `wireless_ssid`/`wireless_psk` (used by `roles/wireless`) live in
+  committed `group_vars/rpi4/wireless.yml` and
+  `group_vars/rpi3/wireless.yml`, encrypted per-variable via
   `ansible-vault encrypt_string` rather than whole-file vault encryption,
   so `make check`/CI can parse the file with no vault password available.
   See the "WiFi network" section of `README.md` for the exact commands.
