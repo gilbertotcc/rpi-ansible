@@ -17,8 +17,8 @@ stable running on a
 > manual Debian setup steps below already cover both boards (differences
 > are called out inline), but the Ansible roles are not yet parameterized
 > per host — see the `# rpi4` / `# parameterize` comments in `playbook.yml`
-> and the `[rpi3]` group in `hosts.ini`. Until that lands, only the `rpi`
-> (RPI4) target is fully working end-to-end.
+> and the `[rpi3]` group in `hosts.ini`. Until that lands, only the `rpi4`
+> target is fully working end-to-end.
 > _Last updated: 2026-08-19._
 
 ## Acknoledgements
@@ -190,7 +190,7 @@ pass `make check`/lint.
 To avoid ever committing the SSID/password in plaintext, both are stored
 as individually
 [vault-encrypted](https://docs.ansible.com/ansible/latest/vault_guide/vault_encrypting_content.html#encrypting-individual-variables-with-ansible-vault)
-variables in a committed `group_vars/rpi/wireless.yml` file. Encrypting
+variables in a committed `group_vars/rpi4/wireless.yml` file. Encrypting
 the SSID too (not just the password) matters if your
 repository is public: a real network name in git history can be
 cross-referenced against wardriving databases (e.g. WiGLE) back to a real
@@ -207,7 +207,7 @@ ansible-vault encrypt_string --ask-vault-pass --stdin-name 'wireless_psk'
 # type your network's password, then press Ctrl-d
 ```
 
-Create `group_vars/rpi/wireless.yml` with `wireless_enabled: true` plus the
+Create `group_vars/rpi4/wireless.yml` with `wireless_enabled: true` plus the
 two blocks output above, e.g.:
 
 ```yaml
@@ -229,7 +229,7 @@ session applying the change if the Pi is currently reached over WiFi).
 
 ### Ansible Vault password
 
-`group_vars/rpi/wireless.yml` above — and any future vault-encrypted
+`group_vars/rpi4/wireless.yml` above — and any future vault-encrypted
 variable — is decrypted with the vault password you chose when running
 `encrypt_string`. You'll need it for every `make run` that touches
 vault-encrypted content, so store it somewhere retrievable (a password

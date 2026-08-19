@@ -9,11 +9,11 @@ Ansible repository that configures a personal single-node Kubernetes cluster
 (powered by [k3s](https://k3s.io/)) on Debian stable running on a Raspberry
 Pi 4 (RPI4). Forked from
 [iamleot/rpi-ansible](https://github.com/iamleot/rpi-ansible).
-`hosts.ini` currently defines two groups — `rpi` (RPI4) and `rpi3` (a
+`hosts.ini` currently defines two groups — `rpi4` (RPI4) and `rpi3` (a
 Raspberry Pi 3, work in progress) — both connected to as `root` (see
 `ansible.cfg`). `playbook.yml` targets `hosts: all`, but several roles
 are not yet parameterized per host (see `# rpi4` / `# parameterize`
-comments in `playbook.yml`), so `rpi` is the only fully-working target
+comments in `playbook.yml`), so `rpi4` is the only fully-working target
 today. _Last updated: 2026-08-19._
 
 ## Commands
@@ -31,7 +31,7 @@ make run            # ansible-playbook --verbose playbook.yml (applies config to
 Run `make check` before considering any change to `playbook.yml`, `roles/*/tasks/*.yml`,
 or lint configs complete — this is exactly what the `ansible.yaml` CI workflow runs.
 
-Once `group_vars/rpi/wireless.yml` exists (see `roles/wireless` below),
+Once `group_vars/rpi4/wireless.yml` exists (see `roles/wireless` below),
 `make run` needs a vault password to decrypt it. With
 `.envrc`/`scripts/ansible-vault-password.sh` set up (direnv + gopass —
 see the "Ansible Vault password" section of `README.md`), plain
@@ -57,7 +57,7 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   4. `roles/network` — set hostname from `roles/network/files/hostname`
   5. `roles/wireless` — configure `wlan0` via ifupdown + `wpasupplicant`
      (`wireless_enabled`, defaults to `false` as a safe fallback; the
-     committed `group_vars/rpi/wireless.yml` sets it `true` since WiFi is
+     committed `group_vars/rpi4/wireless.yml` sets it `true` since WiFi is
      this board's primary network connection)
   6. `roles/dns_resolver` — install/enable the DNS resolver
      (`dns_resolver_package`/`dns_resolver_service`, default `unbound`),
@@ -78,7 +78,7 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   Jinja2 files rendered via `ansible.builtin.template` for values that
   vary (journald limits, zram config, wlan0, k3s config).
 - `wireless_ssid`/`wireless_psk` (used by `roles/wireless`) live in a
-  committed `group_vars/rpi/wireless.yml`, encrypted per-variable via
+  committed `group_vars/rpi4/wireless.yml`, encrypted per-variable via
   `ansible-vault encrypt_string` rather than whole-file vault encryption,
   so `make check`/CI can parse the file with no vault password available.
   See the "WiFi network" section of `README.md` for the exact commands.
