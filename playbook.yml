@@ -12,8 +12,9 @@
       tags: packages
     - role: journald
       tags: journald
-    - role: zram     # rpi4
+    - role: zram
       tags: zram
+      when: inventory_hostname in groups['rpi4']
     - role: network
       tags: network
     - role: wireless
