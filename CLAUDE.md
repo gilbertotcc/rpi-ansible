@@ -11,15 +11,14 @@ a second, lighter-weight board. RPi4 also runs a single-node Kubernetes
 cluster powered by [k3s](https://k3s.io/). Forked from
 [iamleot/rpi-ansible](https://github.com/iamleot/rpi-ansible).
 `hosts.ini` defines two groups — `rpi4` and `rpi3` — both connected to
-as `root` (see `ansible.cfg`). `playbook.yml` targets `hosts: all`; most
-roles apply identically to both hosts, but `roles/zram` and `roles/k3s`
-are gated to the `rpi4` group only, via
-`when: inventory_hostname in groups['rpi4']` on those two role entries
-in `playbook.yml`'s `roles:` list — RPi3's more limited hardware runs
-neither zram-backed swap nor a k3s node. Per-host values (hostname,
-WiFi static IP) live in `group_vars/rpi4/` and `group_vars/rpi3/`; WiFi
-SSID/PSK are the same real network for both boards, so they live in
-`group_vars/all/` instead. _Last updated: 2026-08-19._
+as `root` (see `ansible.cfg`). `playbook.yml` targets `hosts: all`; all
+roles apply to both hosts except `roles/k3s`, which is gated to the
+`rpi4` group only, via `when: inventory_hostname in groups['rpi4']` on
+that role entry in `playbook.yml`'s `roles:` list — RPi3's more limited
+hardware runs no k3s node. Per-host values (hostname, WiFi static IP) live in
+`group_vars/rpi4/` and `group_vars/rpi3/`; WiFi SSID/PSK are the same
+real network for both boards, so they live in `group_vars/all/`
+instead. _Last updated: 2026-08-20._
 
 ## Commands
 
@@ -60,8 +59,7 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
      unbounded on the microSD
   3. `roles/zram` — configure zram-backed swap via
      systemd-zram-generator, giving this low-RAM board memory headroom
-     without writing swap to the microSD (RPi4 only — gated via `when:`
-     in `playbook.yml`)
+     without writing swap to the microSD
   4. `roles/network` — set hostname from the `network_hostname` var
      (`group_vars/rpi4/network.yml`, `group_vars/rpi3/network.yml`)
   5. `roles/wireless` — configure `wlan0` via ifupdown + `wpasupplicant`
@@ -94,8 +92,8 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   growing an existing role's tasks with unrelated work.
 - A role that needs to behave differently per host (not just per group)
   gates itself with `when: inventory_hostname in groups['<group>']` on
-  its `roles:` list entry (see `zram`/`k3s` above) rather than an
-  in-role conditional, keeping the host/group logic visible in one place.
+  its `roles:` list entry (see `k3s` above) rather than an in-role
+  conditional, keeping the host/group logic visible in one place.
 - A role that requires a value to be explicitly set per host (rather than
   falling back to a shared default) defines it as an empty string in
   `defaults/main.yml` and asserts it's non-empty as its first task
