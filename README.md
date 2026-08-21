@@ -54,31 +54,33 @@ it's called out explicitly.
 
 ### Prepare the microSD card
 
-Debian GNU/Linux images for Raspberry Pis are available at
-<https://cloud.debian.org/images/cloud/trixie/daily/latest/>. The same
-`raspi-arm64` image works for both RPi4 and RPi3.
+Debian images for Raspberry Pis are available at
+<https://raspi.debian.net/daily/>. Each board uses its own image:
+`raspi_3_bookworm.img.xz` for RPi3, `raspi_4_bookworm.img.xz` for RPi4.
+The `raspi-arm64` image from
+<https://cloud.debian.org/images/cloud/trixie/daily/latest/> was tried
+first, but its hybrid GPT/MBR layout could leave RPi3 unbootable when
+its root partition was expanded (see
+[issue #54](https://github.com/gilbertotcc/rpi-ansible/issues/54)). The
+`raspi.debian.net` images use a plain MBR layout and resize the root
+filesystem to fill the microSD card automatically on first boot.
 
-You can download it with:
+Download the image for your board along with its checksum:
 
 ```sh
-curl -OL 'https://cloud.debian.org/images/cloud/trixie/daily/latest/debian-13-raspi-arm64-daily.tar.xz'
-curl -OL 'https://cloud.debian.org/images/cloud/trixie/daily/latest/SHA512SUMS'
+curl -OL 'https://raspi.debian.net/daily/raspi_3_bookworm.img.xz'        # RPi3
+curl -OL 'https://raspi.debian.net/daily/raspi_3_bookworm.img.xz.sha256'
 ```
 
-The download is a `.tar.xz` archive wrapping a single raw disk image
-(`disk.raw`); extract it before writing to a microSD card:
+Verify it, then write it straight to a microSD card — it decompresses
+on the fly, no separate extraction step is needed; adapt the device
+path for yours. On macOS:
 
 ```sh
-tar xf debian-13-raspi-arm64-daily.tar.xz
-```
-
-Then, write the image to a microSD card; adapt the device path for
-yours. On macOS:
-
-```sh
+shasum -a 256 -c raspi_3_bookworm.img.xz.sha256
 diskutil list                      # find the card's device, e.g. disk2
 diskutil unmountDisk /dev/disk2
-sudo dd if=disk.raw of=/dev/disk2 bs=1m status=progress
+xzcat raspi_3_bookworm.img.xz | sudo dd of=/dev/disk2 bs=1m status=progress
 ```
 
 ### Your first run
@@ -99,20 +101,8 @@ keyboard.
 > runs (see [WiFi network](#wifi-network)), so a wired connection is
 > what gets you online for the package/SSH setup below.
 
-The first-boot setup process prompts you to configure a timezone (safe
-to skip) and to set a root password — do set one here.
-
-> :warning: Do not leave the root password blank. This image's
-> installer does not create any regular user account, and Debian's
-> usual convention is that leaving root's password blank at install
-> time is precisely what triggers automatically installing and
-> granting `sudo` to a created user account. Since no such user exists
-> here, leaving root's password unset means
-> **no account will ever be able to log in again**. See
-> <https://lists.debian.org/debian-user/2025/04/msg00244.html> for the
-> underlying explanation.
-
-Once set, login as `root` with the password you just chose.
+The image ships with no root password: at the login prompt, enter
+`root` as the username and press `Enter` for the password.
 
 Once logged in, check the board's IP address — you'll need it for the
 SSH steps below and for `hosts.ini`:
@@ -128,18 +118,20 @@ apt update
 apt upgrade
 ```
 
-Then, install Python and an SSH server, both required for Ansible to
-manage the board:
+Python is the only package still missing; install it (an SSH server is
+already included in the image):
 
 ```sh
-apt install python3 openssh-server
+apt install python3
 ```
 
-Permit root login over SSH by setting the following in
+Since root has no password yet, permit root login over SSH and
+temporarily allow empty-password logins by setting the following in
 `/etc/ssh/sshd_config`:
 
 ```none
 PermitRootLogin yes
+PermitEmptyPasswords yes
 ```
 
 then restart the service:
@@ -149,7 +141,7 @@ systemctl restart ssh
 ```
 
 Finally, from the machine you run Ansible from, trust your SSH key on
-the board:
+the board (press `Enter` when prompted for the empty password):
 
 ```sh
 ssh-copy-id -i ~/.ssh/keys/key.pub root@<IP_ADDRESS>
@@ -160,6 +152,10 @@ and verify the login works:
 ```sh
 ssh -i ~/.ssh/keys/key root@<IP_ADDRESS>
 ```
+
+Once key-based login is confirmed, close the empty-password window: remove
+`PermitEmptyPasswords yes` from `/etc/ssh/sshd_config` and restart `ssh`
+again.
 
 ## Manual configurations
 
@@ -275,42 +271,6 @@ From then on, entering this directory exports
 prompting — no `ANSIBLE_PLAYBOOK` override needed — subject to however
 your password manager caches its own unlock.
 
-## Expand the microSD root filesystem
-
-The Debian `raspi-arm64` image may boot with a small root partition and leave
-the remaining microSD capacity unallocated. On this image, the root filesystem
-is `/dev/mmcblk0p1` and the boot filesystem is `/dev/mmcblk0p15`.
-
-First, inspect the layout and verify that unallocated space follows `mmcblk0p1`:
-
-```sh
-lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINTS
-parted -s /dev/mmcblk0 unit MiB print free
-```
-
-If `mmcblk0p1` is followed by free space, expand it online:
-
-```sh
-apt update
-apt install -y gdisk cloud-guest-utils
-
-# Repair the GPT backup header after writing a smaller image to a larger card.
-sgdisk -e /dev/mmcblk0
-
-# Grow root partition 1, then its mounted ext4 filesystem.
-growpart /dev/mmcblk0 1
-resize2fs /dev/mmcblk0p1
-
-# Verify the result.
-lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINTS
-df -h /
-```
-
-`growpart` expands a selected partition up to the next partition or the end of
-the disk. It therefore requires free space immediately after `/dev/mmcblk0p1`.
-If it reports `NOCHANGE`, inspect the partition order before proceeding; do not
-resize or move the boot partition without a backup.
-
 ## Serial console connection
 
 To establish a serial console connection, connect the USB-to-TTL cable
@@ -374,17 +334,3 @@ Or you can tpye `C-a C-d`.
 
 - [Serial communication over UART Raspberry Pi 4](https://forums.raspberrypi.com/viewtopic.php?t=307094)
 - [rpi-flux](https://github.com/gilbertotcc/rpi-flux)
-
-Tools used to expand the microSD root filesystem
-(see [Expand the microSD root filesystem](#expand-the-microsd-root-filesystem)):
-
-- [GNU Parted](https://www.gnu.org/software/parted/) — upstream project for
-  `parted`.
-- [GPT fdisk](https://www.rodsbooks.com/gdisk/) — upstream project and
-  documentation for `sgdisk`.
-- [Canonical cloud-utils](https://github.com/canonical/cloud-utils) —
-  upstream source project for `growpart`.
-- [e2fsprogs](https://e2fsprogs.sourceforge.net/) — upstream filesystem
-  utilities project providing `resize2fs`.
-- [util-linux](https://github.com/util-linux/util-linux) — upstream project
-  providing `lsblk`.
