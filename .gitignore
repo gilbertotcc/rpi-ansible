@@ -1,1 +1,4 @@
 .claude/settings.local.json
+
+# Ignore temporary content
+tmp/
