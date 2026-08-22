@@ -15,5 +15,7 @@
     - role: wireless
     - role: dns_resolver
     - role: wireguard
+    - role: node_exporter
+      when: inventory_hostname in groups['rpi3']
     - role: k3s
       when: inventory_hostname in groups['rpi4']

@@ -1,0 +1,10 @@
+---
+#
+# Handlers for node_exporter.
+#
+
+- name: Restart Node Exporter.
+  become: true
+  ansible.builtin.service:
+    name: prometheus-node-exporter
+    state: restarted
