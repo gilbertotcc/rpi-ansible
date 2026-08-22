@@ -333,13 +333,11 @@ by hand, as `root` on the Pi:
    auto wg0
    iface wg0 inet static
            address 10.254.10.10/24
+           pre-up wg-quick up $IFACE
+           pre-down wg-quick down $IFACE
    ```
 
-   Replace `10.254.10.10/24` with this node's assigned VPN address. No
-   `wg-quick` pre-up/pre-down hooks are needed: Debian's
-   `wireguard-tools` package ships `ifupdown` hook scripts that apply
-   `/etc/wireguard/wg0.conf` automatically for any interface named
-   after it.
+   Replace `10.254.10.10/24` with this node's assigned VPN address.
 
 4. Activate the configuration:
 
