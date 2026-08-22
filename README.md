@@ -271,6 +271,25 @@ From then on, entering this directory exports
 prompting — no `ANSIBLE_PLAYBOOK` override needed — subject to however
 your password manager caches its own unlock.
 
+## Monitoring
+
+RPi3 runs
+[Prometheus Node Exporter](https://github.com/prometheus/node_exporter) via the
+`node_exporter` Ansible role, exposing host metrics (CPU, load, memory,
+filesystem, disk I/O, network, and a handful of systemd unit statuses)
+at `http://<rpi3-address>:9100/metrics`. The role only installs and runs
+the exporter; it does not itself deploy Prometheus or Grafana. Scraping
+is owned by the Prometheus instance already running on RPi4 (managed
+separately through Flux) — registering RPi3 as a scrape target and any
+Grafana dashboard work happen there, not in this repository. Port 9100
+should stay private to the home LAN.
+
+To validate the exporter is up after a run targeting RPi3:
+
+```sh
+curl -fsS http://<rpi3-address>:9100/metrics | head
+```
+
 ## Serial console connection
 
 To establish a serial console connection, connect the USB-to-TTL cable

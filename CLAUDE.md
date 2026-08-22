@@ -8,17 +8,20 @@ code in this repository.
 Ansible repository that configures personal Raspberry Pi boards on
 Debian stable: a Raspberry Pi 4 (RPi4), plus a Raspberry Pi 3 (RPi3) as
 a second, lighter-weight board. RPi4 also runs a single-node Kubernetes
-cluster powered by [k3s](https://k3s.io/). Forked from
+cluster powered by [k3s](https://k3s.io/); RPi3 instead runs Prometheus
+Node Exporter, exposing host metrics for the RPi4/Flux-managed
+Prometheus to scrape. Forked from
 [iamleot/rpi-ansible](https://github.com/iamleot/rpi-ansible).
 `hosts.ini` defines two groups — `rpi4` and `rpi3` — both connected to
 as `root` (see `ansible.cfg`). `playbook.yml` targets `hosts: all`; all
 roles apply to both hosts except `roles/k3s`, which is gated to the
 `rpi4` group only, via `when: inventory_hostname in groups['rpi4']` on
 that role entry in `playbook.yml`'s `roles:` list — RPi3's more limited
-hardware runs no k3s node. Per-host values (hostname, WiFi static IP) live in
+hardware runs no k3s node — and `roles/node_exporter`, gated the same
+way to the `rpi3` group only. Per-host values (hostname, WiFi static IP) live in
 `group_vars/rpi4/` and `group_vars/rpi3/`; WiFi SSID/PSK are the same
 real network for both boards, so they live in `group_vars/all/`
-instead. _Last updated: 2026-08-20._
+instead. _Last updated: 2026-08-22._
 
 ## Commands
 
@@ -80,7 +83,12 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
      point `/etc/resolv.conf` at it
   7. `roles/wireguard` — install WireGuard, generate keys idempotently (uses
      `creates:` guards)
-  8. `roles/k3s` — install/upgrade k3s to the version pinned by
+  8. `roles/node_exporter` — install/configure `prometheus-node-exporter`,
+     exposing host metrics on `node_exporter_listen_address` (default
+     `0.0.0.0:9100`) for the separately managed RPi4/Flux Prometheus to
+     scrape (RPi3 only — gated via `when:` in `playbook.yml`; see
+     README.md's "Monitoring" section)
+  9. `roles/k3s` — install/upgrade k3s to the version pinned by
      `k3s_version` in `playbook.yml`, using
      `roles/k3s/templates/k3s-config.yaml.j2` (RPi4 only — gated via
      `when:` in `playbook.yml`)

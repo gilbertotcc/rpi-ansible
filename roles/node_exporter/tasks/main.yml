@@ -1,0 +1,46 @@
+---
+#
+# Install and configure Prometheus Node Exporter.
+#
+# Exposes host metrics on node_exporter_listen_address for a separately
+# managed Prometheus (RPi4/Flux) to scrape. See README.md for the scrape
+# endpoint and validation command.
+#
+
+- name: Update apt cache if needed.
+  become: true
+  ansible.builtin.apt:
+    cache_valid_time: 3600
+    update_cache: true
+
+- name: Install Node Exporter if needed.
+  become: true
+  ansible.builtin.apt:
+    name: prometheus-node-exporter
+    state: present
+
+- name: Create Node Exporter textfile collector directory.
+  become: true
+  ansible.builtin.file:
+    path: /var/lib/prometheus/node-exporter
+    state: directory
+    owner: prometheus
+    group: prometheus
+    mode: "0755"
+
+- name: Configure Node Exporter arguments.
+  become: true
+  ansible.builtin.template:
+    src: prometheus-node-exporter.j2
+    dest: /etc/default/prometheus-node-exporter
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Node Exporter.
+
+- name: Enable and start Node Exporter.
+  become: true
+  ansible.builtin.service:
+    name: prometheus-node-exporter
+    enabled: true
+    state: started
