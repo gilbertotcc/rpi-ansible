@@ -271,6 +271,95 @@ From then on, entering this directory exports
 prompting — no `ANSIBLE_PLAYBOOK` override needed — subject to however
 your password manager caches its own unlock.
 
+### WireGuard VPN
+
+The `wireguard` Ansible role (`roles/wireguard/tasks/main.yml`)
+installs WireGuard and idempotently generates the node's private/public
+keypair (`/etc/wireguard/wg0` / `/etc/wireguard/wg0.pub`, guarded by
+`creates:` so re-runs don't regenerate them). It does not yet configure
+the remote peer or bring the `wg0` interface up — see
+[issue #21](https://github.com/gilbertotcc/rpi-ansible/issues/21) for
+the plan to automate the rest. Until then, complete the tunnel setup
+by hand, as `root` on the Pi:
+
+1. Read this node's public key:
+
+   ```sh
+   cat /etc/wireguard/wg0.pub
+   ```
+
+   Register this key as a peer on the remote WireGuard server. The
+   server must also allow this client's assigned tunnel address, e.g.
+   `10.254.10.10/32`.
+
+2. Create `/etc/wireguard/wg0.conf`:
+
+   ```sh
+   vim /etc/wireguard/wg0.conf
+   ```
+
+   ```ini
+   [Interface]
+   PrivateKey = <contents of /etc/wireguard/wg0>
+   ListenPort = 51820
+
+   [Peer]
+   # Public key of the remote WireGuard peer/server, not this node's own key.
+   PublicKey = <REMOTE_PEER_PUBLIC_KEY>
+   AllowedIPs = 10.254.10.0/24
+   Endpoint = <REMOTE_PUBLIC_IP_OR_DNS>:51820
+   PersistentKeepalive = 25
+   ```
+
+   Replace the placeholders with the values supplied by the remote VPN
+   administrator. `PrivateKey` is the actual Base64 key content from
+   `/etc/wireguard/wg0`, not a path to that file; `PublicKey` under
+   `[Peer]` is the *remote* peer's key, not this node's own
+   `wg0.pub`.
+
+   Restrict the file's permissions, since it embeds the private key:
+
+   ```sh
+   chmod 600 /etc/wireguard/wg0.conf
+   ```
+
+3. Create `/etc/network/interfaces.d/wg0`:
+
+   ```sh
+   vim /etc/network/interfaces.d/wg0
+   ```
+
+   ```none
+   auto wg0
+   iface wg0 inet static
+           address 10.254.10.10/24
+   ```
+
+   Replace `10.254.10.10/24` with this node's assigned VPN address. No
+   `wg-quick` pre-up/pre-down hooks are needed: Debian's
+   `wireguard-tools` package ships `ifupdown` hook scripts that apply
+   `/etc/wireguard/wg0.conf` automatically for any interface named
+   after it.
+
+4. Activate the configuration:
+
+   ```sh
+   service networking restart
+   ```
+
+   Alternatively, reboot the node.
+
+5. Verify the tunnel:
+
+   ```sh
+   wg show
+   ping -I wg0 -c 3 <REMOTE_TUNNEL_IP>
+   ```
+
+   A working connection shows a `peer:` section, a recent
+   `latest handshake`, and non-zero sent and received transfer
+   counters.
+
 ## Monitoring
 
 RPi3 runs
@@ -305,7 +394,7 @@ RPi4 share the same 40-pin header and pin layout.
 > :warning: DO NOT connect the Red (5V) wire.
 > Connecting it will damage the board.
 
-The connection requires a _crossover_ configuration: The cable's Receiver (RX)
+The connection requires a *crossover* configuration: The cable's Receiver (RX)
 connects to the Pi's Transmitter (TX), and vice versa.
 
 | Wire Color | Cable Function | Connect to Pi Pin | Pi Pin Function | Description                                           |
@@ -352,4 +441,5 @@ Or you can tpye `C-a C-d`.
 ## See also
 
 - [Serial communication over UART Raspberry Pi 4](https://forums.raspberrypi.com/viewtopic.php?t=307094)
+- [WireGuard — Debian Wiki](https://wiki.debian.org/WireGuard)
 - [rpi-flux](https://github.com/gilbertotcc/rpi-flux)
