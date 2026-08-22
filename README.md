@@ -392,7 +392,7 @@ RPi4 share the same 40-pin header and pin layout.
 > :warning: DO NOT connect the Red (5V) wire.
 > Connecting it will damage the board.
 
-The connection requires a _crossover_ configuration: The cable's Receiver (RX)
+The connection requires a *crossover* configuration: The cable's Receiver (RX)
 connects to the Pi's Transmitter (TX), and vice versa.
 
 | Wire Color | Cable Function | Connect to Pi Pin | Pi Pin Function | Description                                           |
