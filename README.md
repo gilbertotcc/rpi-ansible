@@ -358,6 +358,72 @@ by hand, as `root` on the Pi:
    `latest handshake`, and non-zero sent and received transfer
    counters.
 
+### Upgrading Debian
+
+Debian's current stable release is tracked at
+<https://www.debian.org/releases/> — check there before upgrading.
+The steps below are a manual, in-place major-version upgrade, worked
+through here as `bookworm` to `trixie` on RPi3; the same steps apply
+to any future release jump, substituting the relevant codenames. This
+isn't yet automated by Ansible — perform it by hand, as `root` on the
+Pi.
+
+> :warning: This is a major-version jump: expect interactive prompts
+> for service restarts and configuration-file conflicts, and keep a
+> way to reach the board (console/SSH) in case networking breaks
+> mid-upgrade.
+
+1. Fully upgrade the current release first:
+
+   ```sh
+   apt full-upgrade
+   ```
+
+2. Edit `/etc/apt/sources.list`: comment out the current release's
+   entries and add the new release's, e.g.:
+
+   ```none
+   #deb http://deb.debian.org/debian bookworm main non-free-firmware non-free
+   #deb http://deb.debian.org/debian bookworm-updates main non-free-firmware non-free
+   #deb http://security.debian.org/debian-security bookworm-security main non-free-firmware non-free
+
+   deb http://deb.debian.org/debian trixie main non-free-firmware non-free
+   deb http://deb.debian.org/debian trixie-updates main non-free-firmware non-free
+   deb http://security.debian.org/debian-security trixie-security main non-free-firmware non-free
+   ```
+
+3. Pull in the new release's packages:
+
+   ```sh
+   apt update
+   apt upgrade
+   ```
+
+   You'll be prompted to restart services; do so. You may also be
+   prompted to keep or replace configuration files (e.g.
+   `journald.conf`) — when unsure, keep the local version: roles like
+   `roles/journald` re-template their managed files on the next
+   Ansible run anyway.
+
+4. Run `apt full-upgrade` again to pull in whatever the first pass
+   left pending (renamed/transitional packages, a new kernel image,
+   and similar dependency churn) — expect a large changeset here.
+
+5. Reboot to load the new kernel and cleanly restart every service:
+
+   ```sh
+   systemctl reboot
+   ```
+
+6. SSH back in and confirm the board's services still work (e.g.
+   `curl -fsS http://<rpi3-address>:9100/metrics | head` — see
+   [Monitoring](#monitoring)), then re-run Ansible against just that
+   host to confirm it's still idempotent post-upgrade:
+
+   ```sh
+   ansible-playbook playbook.yml --limit=rpi3
+   ```
+
 ## Monitoring
 
 RPi3 runs
