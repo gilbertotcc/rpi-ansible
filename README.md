@@ -424,6 +424,29 @@ Pi.
    ansible-playbook playbook.yml --limit=rpi3
    ```
 
+7. Purge residual packages from the previous release. After confirming the
+   upgraded system boots and runs correctly, inspect for packages in the `rc`
+   state (removed packages with residual configuration files):
+
+   ```sh
+   dpkg -l | grep '^rc'
+   ```
+
+   Purge any obsolete residual packages you no longer need, such as old kernel
+   packages from the previous Debian release:
+
+   ```sh
+   sudo apt purge <package-name>...
+   ```
+
+   Optionally preview and remove automatically installed dependencies that are
+   no longer required:
+
+   ```sh
+   sudo apt autoremove --purge --simulate
+   sudo apt autoremove --purge
+   ```
+
 ## Monitoring
 
 RPi3 runs
