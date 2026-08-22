@@ -409,19 +409,13 @@ Pi.
    left pending (renamed/transitional packages, a new kernel image,
    and similar dependency churn) — expect a large changeset here.
 
-5. Drop packages the upgrade left orphaned:
-
-   ```sh
-   apt autoremove
-   ```
-
-6. Reboot to load the new kernel and cleanly restart every service:
+5. Reboot to load the new kernel and cleanly restart every service:
 
    ```sh
    systemctl reboot
    ```
 
-7. SSH back in and confirm the board's services still work (e.g.
+6. SSH back in and confirm the board's services still work (e.g.
    `curl -fsS http://<rpi3-address>:9100/metrics | head` — see
    [Monitoring](#monitoring)), then re-run Ansible against just that
    host to confirm it's still idempotent post-upgrade:
