@@ -250,18 +250,57 @@ individually
 variables in `group_vars/rpi3/vector.yml`, since this repository is
 public and neither should be committed in plaintext.
 
-To set it up, create a dedicated Google Cloud service account scoped to
-`roles/logging.logWriter` on the target project, generate a JSON key for
-it, then generate the two encrypted blocks. The commands below assume
-`ANSIBLE_VAULT_PASSWORD_FILE` is already set (see "Ansible Vault
-password" below); pass `--ask-vault-pass` instead if you haven't set
-that up yet. Reading from stdin, rather than passing the values as
-command-line arguments, keeps them out of your shell history:
+To set it up, first create a dedicated Google Cloud [service
+account](https://cloud.google.com/sdk/gcloud/reference/iam/service-accounts/create)
+scoped to only [`roles/logging.logWriter`](https://cloud.google.com/logging/docs/access-control#logging_permission_types)
+at the project level, so Vector can write log entries and nothing else.
+Substitute your own project and service-account IDs, then run:
+
+```sh
+set -euo pipefail
+
+PROJECT_ID="<PROJECT_ID>"
+SA_ID="<SA_ID>"
+SA_EMAIL="${SA_ID}@${PROJECT_ID}.iam.gserviceaccount.com"
+KEY_FILE="${HOME}/${SA_ID}.json"
+
+gcloud services enable logging.googleapis.com --project="${PROJECT_ID}"
+
+gcloud iam service-accounts create "${SA_ID}" \
+  --project="${PROJECT_ID}" \
+  --display-name="Vector Cloud Logging"
+
+gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+  --member="serviceAccount:${SA_EMAIL}" \
+  --role="roles/logging.logWriter"
+
+umask 077
+gcloud iam service-accounts keys create "${KEY_FILE}" \
+  --iam-account="${SA_EMAIL}"
+
+printf 'Service account: %s\nKey file: %s\n' "${SA_EMAIL}" "${KEY_FILE}"
+```
+
+`umask 077` keeps the generated key file readable only by you. Never
+commit, print, or upload the key JSON anywhere — the email and
+`KEY_FILE` path printed above are the only output that's safe to share;
+see [Best practices for managing service account
+keys](https://cloud.google.com/iam/docs/best-practices-for-managing-service-account-keys).
+Getting the key onto the Pi itself is handled below and by the `vector`
+role (`roles/vector/tasks/main.yml`), which writes it to
+`/etc/rpi-observability/` with non-world-readable permissions — no
+manual `scp`/`chmod` needed.
+
+With `KEY_FILE` in hand, generate the two encrypted blocks. The
+commands below assume `ANSIBLE_VAULT_PASSWORD_FILE` is already set (see
+"Ansible Vault password" below); pass `--ask-vault-pass` instead if you
+haven't set that up yet. Reading from stdin, rather than passing the
+values as command-line arguments, keeps them out of your shell history:
 
 ```sh
 ansible-vault encrypt_string --stdin-name 'vector_gcp_project_id'
 # type your GCP project ID, then press Ctrl-d
-ansible-vault encrypt_string --stdin-name 'vector_gcp_credentials_json' < path/to/key.json
+ansible-vault encrypt_string --stdin-name 'vector_gcp_credentials_json' < "${KEY_FILE}"
 ```
 
 Edit `group_vars/rpi3/vector.yml` with `vector_enabled: true` and the
