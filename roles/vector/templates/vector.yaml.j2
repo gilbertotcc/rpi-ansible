@@ -1,0 +1,30 @@
+sources:
+  rpi3_journald:
+    type: journald
+    since_now: true
+
+transforms:
+  enhance_journald:
+    type: remap
+    inputs:
+      - rpi3_journald
+    source: |
+      log_priority_int = to_int!(.PRIORITY)
+      .log_level = to_syslog_level!(log_priority_int)
+
+      .host = "{{ vector_host_label }}"
+      .log_source = "journald"
+
+sinks:
+  gcp_cloud_logging:
+    type: gcp_stackdriver_logs
+    inputs:
+      - enhance_journald
+    project_id: "{{ vector_gcp_project_id }}"
+    log_id: "{{ vector_gcp_log_id }}"
+    credentials_path: "{{ vector_gcp_credentials_path }}"
+    resource:
+      type: global
+    labels:
+      host: "{{ vector_host_label }}"
+    severity_key: "log_level"

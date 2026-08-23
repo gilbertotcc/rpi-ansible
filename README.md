@@ -188,13 +188,16 @@ a real network name in git history can be cross-referenced against
 wardriving databases (e.g. WiGLE) back to a real location.
 
 To set it up, pick a vault password, then generate the two encrypted
-blocks. Reading from stdin, rather than passing the values as command-line
-arguments, keeps them out of your shell history:
+blocks. The commands below assume `ANSIBLE_VAULT_PASSWORD_FILE` is
+already set (see "Ansible Vault password" below); pass `--ask-vault-pass`
+instead if you haven't set that up yet. Reading from stdin, rather than
+passing the values as command-line arguments, keeps them out of your
+shell history:
 
 ```sh
-ansible-vault encrypt_string --ask-vault-pass --stdin-name 'wireless_ssid'
+ansible-vault encrypt_string --stdin-name 'wireless_ssid'
 # type your network's SSID, then press Ctrl-d
-ansible-vault encrypt_string --ask-vault-pass --stdin-name 'wireless_psk'
+ansible-vault encrypt_string --stdin-name 'wireless_psk'
 # type your network's password, then press Ctrl-d
 ```
 
@@ -228,6 +231,63 @@ immediately without rebooting, run `ifup wlan0` on the Pi (the role does
 not do this automatically, since restarting the interface could drop
 the very SSH session applying the change if the Pi is currently reached
 over WiFi).
+
+### Vector log export
+
+RPi3 runs [Vector](https://vector.dev/) via the `vector` Ansible role
+(`roles/vector/tasks/main.yml`), forwarding its journald logs to Google
+Cloud Logging through Vector's `gcp_stackdriver_logs` sink. The role
+installs Vector from its official APT repository (guarded so the setup
+script only runs once, not on every play), templates
+`/etc/vector/vector.yaml`, and writes the GCP service account key to
+`/etc/rpi-observability/`. The role defaults to `vector_enabled: false`
+as a safe fallback, so a fresh clone doesn't need any GCP setup just to
+pass `make check`/lint.
+
+The GCP project ID and the service account key are both stored as
+individually
+[vault-encrypted](https://docs.ansible.com/ansible/latest/vault_guide/vault_encrypting_content.html#encrypting-individual-variables-with-ansible-vault)
+variables in `group_vars/rpi3/vector.yml`, since this repository is
+public and neither should be committed in plaintext.
+
+To set it up, create a dedicated Google Cloud service account scoped to
+`roles/logging.logWriter` on the target project, generate a JSON key for
+it, then generate the two encrypted blocks. The commands below assume
+`ANSIBLE_VAULT_PASSWORD_FILE` is already set (see "Ansible Vault
+password" below); pass `--ask-vault-pass` instead if you haven't set
+that up yet. Reading from stdin, rather than passing the values as
+command-line arguments, keeps them out of your shell history:
+
+```sh
+ansible-vault encrypt_string --stdin-name 'vector_gcp_project_id'
+# type your GCP project ID, then press Ctrl-d
+ansible-vault encrypt_string --stdin-name 'vector_gcp_credentials_json' < path/to/key.json
+```
+
+Edit `group_vars/rpi3/vector.yml` with `vector_enabled: true` and the
+two encrypted blocks output above:
+
+```yaml
+---
+vector_enabled: true
+vector_gcp_project_id: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          66386439653236336462626566653063336164663966303231363934653561363...
+vector_gcp_credentials_json: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          32643361393835653136306164393433656333383761346130336436393730323...
+```
+
+Commit the file, then apply it as described in "Ansible Vault password"
+below. To validate it's working:
+
+```sh
+vector validate /etc/vector/vector.yaml
+systemctl status vector.service
+logger -t rpi3-vector-poc "Cloud Logging test $(date --iso-8601=seconds)"
+```
+
+Then check the Google Cloud Logs Explorer for the tagged test event.
 
 ### Ansible Vault password
 
@@ -465,6 +525,10 @@ To validate the exporter is up after a run targeting RPi3:
 ```sh
 curl -fsS http://<rpi3-address>:9100/metrics | head
 ```
+
+RPi3's logs (as opposed to metrics) are handled separately, via the
+`vector` role forwarding journald to Google Cloud Logging — see the
+"Vector log export" section above.
 
 ## Serial console connection
 

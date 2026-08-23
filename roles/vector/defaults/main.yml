@@ -1,0 +1,12 @@
+---
+vector_enabled: false
+
+vector_gcp_project_id: ""
+vector_gcp_credentials_json: ""
+vector_gcp_credentials_dir: /etc/rpi-observability
+vector_gcp_credentials_filename: gcp-credentials.json
+vector_gcp_credentials_path: >-
+  {{ vector_gcp_credentials_dir }}/{{ vector_gcp_credentials_filename }}
+vector_gcp_log_id: rpi3-journald
+
+vector_host_label: "{{ network_hostname }}"
