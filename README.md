@@ -254,8 +254,8 @@ To set it up, first create a dedicated Google Cloud service account
 scoped to only
 [`roles/logging.logWriter`](https://cloud.google.com/logging/docs/access-control#logging_permission_types)
 (Logs Writer) at the project level, so Vector can write log entries and
-nothing else. Using the [Cloud
-Console](https://console.cloud.google.com/iam-admin/serviceaccounts):
+nothing else. Using the
+[Cloud Console](https://console.cloud.google.com/iam-admin/serviceaccounts):
 
 1. Enable the Cloud Logging API for your project, if it isn't already.
 2. Under **IAM & Admin > Service Accounts**, create a new service
@@ -263,14 +263,13 @@ Console](https://console.cloud.google.com/iam-admin/serviceaccounts):
    name.
 3. Grant it only the **Logs Writer** (`roles/logging.logWriter`) role
    at the project level; skip any broader role.
-4. Open the new service account's **Keys** tab, then **Add Key >
-   Create new key > JSON**, and download it. Note where it lands
+4. Open the new service account's **Keys** tab, then
+   **Add Key > Create new key > JSON**, and download it. Note where it lands
    locally — you'll reference that path below.
 
 Never commit, print, or upload the downloaded key JSON anywhere — only
 its service-account email and local file path are safe to share; see
-[Best practices for managing service account
-keys](https://cloud.google.com/iam/docs/best-practices-for-managing-service-account-keys).
+[Best practices for managing service account keys](https://cloud.google.com/iam/docs/best-practices-for-managing-service-account-keys).
 Getting the key onto the Pi itself is handled below and by the `vector`
 role (`roles/vector/tasks/main.yml`), which writes it to
 `/etc/rpi-observability/` with non-world-readable permissions — no
