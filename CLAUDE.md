@@ -187,3 +187,32 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   headers, 80-char line length except in tables/code blocks) and `lychee`
   link checking (add unreachable/intentional URLs to `.lycheeignore` rather
   than disabling the check).
+
+## README.md editing principles
+
+`README.md` is written for three personas — Junior DevOps Engineer, Senior
+Software Engineer, and Sysadmin — each of whom may skim for a different
+section; no single persona's needs should dictate the whole structure. Any
+edit to `README.md` (including a full rewrite) must follow these five rules:
+
+1. **Organization.** Order sections in a logical, task-oriented reading
+   order — what a reader needs first, comes first. Any README section list
+   over roughly 100 lines needs a table of contents. Keep initial-setup
+   content and ongoing-maintenance content in visibly separate sections,
+   not interleaved.
+2. **Clarity.** Write short, well-structured sentences. State a pattern or
+   explanation once and reference it afterward from other sections — don't
+   restate it near-verbatim in multiple places. Gloss jargon/tooling names
+   (`k3s`, `zram`, `journald`, WireGuard, `ifupdown`, and similar) with a
+   short explanation or a link on first mention, since not every reader
+   already knows them.
+3. **Skimmability.** Default to concise; prefer headings and lists over
+   dense paragraphs. Only go verbose where a step is genuinely crucial or
+   non-obvious (e.g. a manual step Ansible can't automate).
+4. **Comprehension.** Never drop a manual/non-automatable step when
+   editing — these document things Ansible cannot do for the reader, and
+   cutting them silently breaks the setup, not just the prose.
+5. **References.** Link to official docs inline on first mention of a
+   tool/technology, and keep a "See also" section at the end that collects
+   further reading, rather than leaving references scattered through the
+   body only.

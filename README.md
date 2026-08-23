@@ -1,23 +1,36 @@
 # RPi Ansible
 
-[Ansible](https://www.ansible.com/) repository of personal Kubernetes
-single-node cluster powered by [k3s](https://k3s.io/) on the latest Debian
-stable running on a
+This is an [Ansible](https://www.ansible.com/) repository for two personal
+Raspberry Pi boards, both running the latest Debian stable. A
 [Raspberry Pi 4 Model B](https://www.raspberrypi.com/products/raspberry-pi-4-model-b/)
-(RPi4), plus a
+(RPi4) runs a single-node Kubernetes cluster powered by
+[k3s](https://k3s.io/) (a lightweight Kubernetes distribution). A
 [Raspberry Pi 3 Model B](https://www.raspberrypi.com/products/raspberry-pi-3-model-b/)
-(RPi3) as a second, lighter-weight board.
+(RPi3) is a second, lighter-weight board: it runs Prometheus Node Exporter,
+exposing host metrics for the RPi4-managed Prometheus to scrape, and
+[Vector](https://vector.dev/), forwarding its logs to Google Cloud Logging.
 
 > :warning: Everything here is done just for fun; things will likely break,
 > readers beware!
 
-## Acknoledgements
+## Table of contents
 
-I thank @iamleot for his work
-[iamleot/rpi-ansible](https://github.com/iamleot/rpi-ansible) from which I
-created this fork.
-This repository includes code that he further added in original codebase to
-keep this project up-to-date and well-maintained.
+- [Requirements](#requirements)
+- [Board setup](#board-setup)
+  - [Prepare the microSD card](#prepare-the-microsd-card)
+  - [Your first run](#your-first-run)
+- [Serial console connection](#serial-console-connection)
+- [Configuration and manual setup](#configuration-and-manual-setup)
+  - [Configuration variables](#configuration-variables)
+  - [Ansible Vault password](#ansible-vault-password)
+  - [WiFi network](#wifi-network)
+  - [WireGuard VPN](#wireguard-vpn)
+  - [Vector log export](#vector-log-export)
+- [Maintenance](#maintenance)
+  - [Upgrading Debian](#upgrading-debian)
+- [Monitoring](#monitoring)
+- [Acknowledgements](#acknowledgements)
+- [See also](#see-also)
 
 ## Requirements
 
@@ -157,7 +170,77 @@ Once key-based login is confirmed, close the empty-password window: remove
 `PermitEmptyPasswords yes` from `/etc/ssh/sshd_config` and restart `ssh`
 again.
 
-## Manual configurations
+## Serial console connection
+
+A serial console gives you a login prompt over a USB-to-TTL cable instead
+of an HDMI monitor and keyboard — useful for headless boards or once a
+monitor isn't convenient anymore. To establish one, connect the
+USB-to-TTL cable leads to the GPIO header located on the edge of the
+board — RPi3 and RPi4 share the same 40-pin header and pin layout.
+
+> :information_source: On RPi3, this connection only becomes usable
+> after the first boot has been completed via monitor and keyboard —
+> see [Your first run](#your-first-run).
+
+<!-- -->
+
+> :warning: DO NOT connect the Red (5V) wire.
+> Connecting it will damage the board.
+
+The connection requires a *crossover* configuration: The cable's Receiver (RX)
+connects to the Pi's Transmitter (TX), and vice versa.
+
+| Wire Color | Cable Function | Connect to Pi Pin | Pi Pin Function | Description                                           |
+| :--------- | :------------- | :---------------- | :-------------- | :---------------------------------------------------- |
+| **Red**    | 5V VCC         | **NC**            | 5V Power        | **Leave Disconnected**                                |
+| **Black**  | GND            | **Pin 6**         | Ground          | Common Ground reference                               |
+| **White**  | RX (Receive)   | **Pin 8**         | GPIO 14 (TXD)   | Pi transmits data → Cable receives                    |
+| **Green**  | TX (Transmit)  | **Pin 10**        | GPIO 15 (RXD)   | Cable transmits data → Pi receives                    |
+
+The diagram below represents the top-left corner of the Pi's GPIO
+header (the end closest to the SD card slot).
+Connections are made to the outer row of pins.
+
+```text
+      [Edge of Board]
+      
+      (3V3)  [01]  [02]  (5V)
+      (SDA)  [03]  [04]  (5V)
+      (SCL)  [05]  [06]  GND  <─── Connect BLACK Wire
+      (GP4)  [07]  [08]  TXD  <─── Connect WHITE Wire
+      (GND)  [09]  [10]  RXD  <─── Connect GREEN Wire
+             [11]  [12]  (GP18)
+             ...   ...
+```
+
+On macOS, you can use `screen` to connect to the board with this command:
+
+```sh
+screen /dev/cu.usbserial-1140 115200
+```
+
+where `cu.usbserial-1140` is the device representing the serial connection.
+
+To close the serial communication session use the following commands to get the
+session ID and close it.
+
+```sh
+screen -ls
+screen -r <SESSION_ID>
+```
+
+Or you can type `C-a C-d`.
+
+## Configuration and manual setup
+
+The sections below cover everything Ansible can't fully automate for you
+before `make run` does anything useful for a given host: variables you must
+set, and one-time manual steps (generating a vault password, registering a
+device with a remote server) that only you can perform. Several roles
+(`wireless`, `wireguard`, `vector`) share the same safety pattern: each
+defaults to its `*_enabled` variable set to `false`, so a fresh clone of
+this repository needs no extra setup just to pass `make check`/lint — you
+opt a host in explicitly, as covered in each section below.
 
 ### Configuration variables
 
@@ -215,167 +298,17 @@ it, in its own subsection below.
   (vault-encrypted) — the downloaded service account key JSON —
   `group_vars/rpi3/vector.yml`.
 
-### WiFi network
-
-WiFi is configured by the `wireless` Ansible role
-(`roles/wireless/tasks/main.yml`), which installs `ifupdown`,
-`wpasupplicant`, `firmware-brcm80211`, and `wireless-regdb`, then
-templates `/etc/network/interfaces.d/wlan0` for you. Both boards use WiFi
-as their primary (often only) network connection, so in practice you'll
-want it enabled for each. The role itself defaults to
-`wireless_enabled: false` as a safe fallback, so a fresh clone doesn't
-need any WiFi setup just to pass `make check`/lint.
-
-To avoid ever committing the SSID/password in plaintext, both are stored
-as individually
-[vault-encrypted](https://docs.ansible.com/ansible/latest/vault_guide/vault_encrypting_content.html#encrypting-individual-variables-with-ansible-vault)
-variables. Both boards are on the same real WiFi network, so the SSID
-and PSK live once in a committed `group_vars/all/wireless.yml`, which
-Ansible applies to every host in the inventory; per-host files
-(`group_vars/rpi4/wireless.yml`, `group_vars/rpi3/wireless.yml`) hold
-only `wireless_enabled` plus that host's plaintext `wireless_address`
-(static IP, CIDR notation) and `wireless_gateway` — these aren't secret,
-so they don't need vault-encrypting. Should a board ever join a
-different network, override the SSID/PSK in that host's own
-`group_vars/<group>/wireless.yml`, since Ansible resolves group_vars
-files for more specific groups before `group_vars/all`. Encrypting the
-SSID too (not just the password) matters if your repository is public:
-a real network name in git history can be cross-referenced against
-wardriving databases (e.g. WiGLE) back to a real location.
-
-To set it up, pick a vault password, then generate the two encrypted
-blocks. The commands below assume `ANSIBLE_VAULT_PASSWORD_FILE` is
-already set (see "Ansible Vault password" below); pass `--ask-vault-pass`
-instead if you haven't set that up yet. Reading from stdin, rather than
-passing the values as command-line arguments, keeps them out of your
-shell history:
-
-```sh
-ansible-vault encrypt_string --stdin-name 'wireless_ssid'
-# type your network's SSID, then press Ctrl-d
-ansible-vault encrypt_string --stdin-name 'wireless_psk'
-# type your network's password, then press Ctrl-d
-```
-
-Create (or edit) `group_vars/all/wireless.yml` with the two encrypted
-blocks output above:
-
-```yaml
----
-wireless_ssid: !vault |
-          $ANSIBLE_VAULT;1.1;AES256
-          66386439653236336462626566653063336164663966303231363934653561363...
-wireless_psk: !vault |
-          $ANSIBLE_VAULT;1.1;AES256
-          32643361393835653136306164393433656333383761346130336436393730323...
-```
-
-Then create (or edit) each host's `group_vars/<group>/wireless.yml` with
-`wireless_enabled: true` and its `wireless_address`/`wireless_gateway`,
-e.g.:
-
-```yaml
----
-wireless_enabled: true
-wireless_address: 192.168.1.25/27
-wireless_gateway: 192.168.1.1
-```
-
-Commit both files, then apply them as described in "Ansible Vault
-password" below. The interface comes up on next boot; to bring it up
-immediately without rebooting, run `ifup wlan0` on the Pi (the role does
-not do this automatically, since restarting the interface could drop
-the very SSH session applying the change if the Pi is currently reached
-over WiFi).
-
-### Vector log export
-
-RPi3 runs [Vector](https://vector.dev/) via the `vector` Ansible role
-(`roles/vector/tasks/main.yml`), forwarding its journald logs to Google
-Cloud Logging through Vector's `gcp_stackdriver_logs` sink. The role
-installs Vector from its official APT repository (guarded so the setup
-script only runs once, not on every play), templates
-`/etc/vector/vector.yaml`, and writes the GCP service account key to
-`/etc/rpi-observability/`. The role defaults to `vector_enabled: false`
-as a safe fallback, so a fresh clone doesn't need any GCP setup just to
-pass `make check`/lint.
-
-The GCP project ID and the service account key are both stored as
-individually
-[vault-encrypted](https://docs.ansible.com/ansible/latest/vault_guide/vault_encrypting_content.html#encrypting-individual-variables-with-ansible-vault)
-variables in `group_vars/rpi3/vector.yml`, since this repository is
-public and neither should be committed in plaintext.
-
-To set it up, first create a dedicated Google Cloud service account
-scoped to only
-[`roles/logging.logWriter`](https://cloud.google.com/logging/docs/access-control#logging_permission_types)
-(Logs Writer) at the project level, so Vector can write log entries and
-nothing else. Using the
-[Cloud Console](https://console.cloud.google.com/iam-admin/serviceaccounts):
-
-1. Enable the Cloud Logging API for your project, if it isn't already.
-2. Under **IAM & Admin > Service Accounts**, create a new service
-   account — give it a descriptive ID (e.g. `vector-cloud-logging`) and
-   name.
-3. Grant it only the **Logs Writer** (`roles/logging.logWriter`) role
-   at the project level; skip any broader role.
-4. Open the new service account's **Keys** tab, then
-   **Add Key > Create new key > JSON**, and download it. Note where it lands
-   locally — you'll reference that path below.
-
-Never commit, print, or upload the downloaded key JSON anywhere — only
-its service-account email and local file path are safe to share; see
-[Best practices for managing service account keys](https://cloud.google.com/iam/docs/best-practices-for-managing-service-account-keys).
-Getting the key onto the Pi itself is handled below and by the `vector`
-role (`roles/vector/tasks/main.yml`), which writes it to
-`/etc/rpi-observability/` with non-world-readable permissions — no
-manual `scp`/`chmod` needed.
-
-With the downloaded key file in hand, generate the two encrypted
-blocks. The commands below assume `ANSIBLE_VAULT_PASSWORD_FILE` is
-already set (see "Ansible Vault password" below); pass
-`--ask-vault-pass` instead if you haven't set that up yet. Reading from
-stdin, rather than passing the values as command-line arguments, keeps
-them out of your shell history:
-
-```sh
-ansible-vault encrypt_string --stdin-name 'vector_gcp_project_id'
-# type your GCP project ID, then press Ctrl-d
-ansible-vault encrypt_string --stdin-name 'vector_gcp_credentials_json' < path/to/key.json
-```
-
-Edit `group_vars/rpi3/vector.yml` with `vector_enabled: true` and the
-two encrypted blocks output above:
-
-```yaml
----
-vector_enabled: true
-vector_gcp_project_id: !vault |
-          $ANSIBLE_VAULT;1.1;AES256
-          66386439653236336462626566653063336164663966303231363934653561363...
-vector_gcp_credentials_json: !vault |
-          $ANSIBLE_VAULT;1.1;AES256
-          32643361393835653136306164393433656333383761346130336436393730323...
-```
-
-Commit the file, then apply it as described in "Ansible Vault password"
-below. To validate it's working:
-
-```sh
-vector validate /etc/vector/vector.yaml
-systemctl status vector.service
-logger -t rpi3-vector-poc "Cloud Logging test $(date --iso-8601=seconds)"
-```
-
-Then check the Google Cloud Logs Explorer for the tagged test event.
-
 ### Ansible Vault password
 
-`group_vars/all/wireless.yml` above — and any future vault-encrypted
-variable — is decrypted with the vault password you chose when running
-`encrypt_string`. You'll need it for every `make run` that touches
-vault-encrypted content, so store it somewhere retrievable (a password
-manager or secrets vault) rather than relying on memory.
+Several variables above (WiFi's SSID/password, WireGuard's peer details,
+Vector's GCP credentials) are stored
+[vault-encrypted](https://docs.ansible.com/ansible/latest/vault_guide/vault_encrypting_content.html#encrypting-individual-variables-with-ansible-vault)
+rather than in plaintext, since this repository is public. Each is
+decrypted with the vault password you choose the first time you run
+`ansible-vault encrypt_string` (see the sections below for the exact
+commands). You'll need that same password for every `make run` that
+touches vault-encrypted content, so store it somewhere retrievable (a
+password manager or secrets vault) rather than relying on memory.
 
 By default you'll be asked for it interactively:
 
@@ -411,20 +344,89 @@ From then on, entering this directory exports
 prompting — no `ANSIBLE_PLAYBOOK` override needed — subject to however
 your password manager caches its own unlock.
 
+### WiFi network
+
+WiFi is configured by the `wireless` Ansible role
+(`roles/wireless/tasks/main.yml`), which installs `ifupdown` (Debian's
+network interface manager — some base images run `systemd-networkd`
+instead and lack it), `wpasupplicant`, `firmware-brcm80211`, and
+`wireless-regdb`, then templates `/etc/network/interfaces.d/wlan0` for
+you. Both boards use WiFi as their primary (often only) network
+connection, so in practice you'll want it enabled for each.
+
+To avoid ever committing the SSID/password in plaintext, both are stored
+as individually vault-encrypted variables (see
+[Ansible Vault password](#ansible-vault-password) above). Both boards are
+on the same real WiFi network, so the SSID and PSK live once in a
+committed `group_vars/all/wireless.yml`, which Ansible applies to every
+host in the inventory; per-host files (`group_vars/rpi4/wireless.yml`,
+`group_vars/rpi3/wireless.yml`) hold only `wireless_enabled` plus that
+host's plaintext `wireless_address` (static IP, CIDR notation) and
+`wireless_gateway` — these aren't secret, so they don't need
+vault-encrypting. Should a board ever join a different network, override
+the SSID/PSK in that host's own `group_vars/<group>/wireless.yml`, since
+Ansible resolves group_vars files for more specific groups before
+`group_vars/all`. Encrypting the SSID too (not just the password) matters
+if your repository is public: a real network name in git history can be
+cross-referenced against wardriving databases (e.g. WiGLE) back to a real
+location.
+
+To set it up, pick a vault password, then generate the two encrypted
+blocks. The commands below assume `ANSIBLE_VAULT_PASSWORD_FILE` is
+already set (see [Ansible Vault password](#ansible-vault-password)
+above); pass `--ask-vault-pass` instead if you haven't set that up yet.
+Reading from stdin, rather than passing the values as command-line
+arguments, keeps them out of your shell history:
+
+```sh
+ansible-vault encrypt_string --stdin-name 'wireless_ssid'
+# type your network's SSID, then press Ctrl-d
+ansible-vault encrypt_string --stdin-name 'wireless_psk'
+# type your network's password, then press Ctrl-d
+```
+
+Create (or edit) `group_vars/all/wireless.yml` with the two encrypted
+blocks output above:
+
+```yaml
+---
+wireless_ssid: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          66386439653236336462626566653063336164663966303231363934653561363...
+wireless_psk: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          32643361393835653136306164393433656333383761346130336436393730323...
+```
+
+Then create (or edit) each host's `group_vars/<group>/wireless.yml` with
+`wireless_enabled: true` and its `wireless_address`/`wireless_gateway`,
+e.g.:
+
+```yaml
+---
+wireless_enabled: true
+wireless_address: 192.168.1.25/27
+wireless_gateway: 192.168.1.1
+```
+
+Commit both files, then apply them as described in
+[Ansible Vault password](#ansible-vault-password) above. The interface
+comes up on next boot; to bring it up immediately without rebooting, run
+`ifup wlan0` on the Pi (the role does not do this automatically, since
+restarting the interface could drop the very SSH session applying the
+change if the Pi is currently reached over WiFi).
+
 ### WireGuard VPN
 
-The `wireguard` Ansible role (`roles/wireguard/tasks/main.yml`)
-installs WireGuard, idempotently generates the node's private/public
-keypair (`/etc/wireguard/wg0` / `/etc/wireguard/wg0.pub`, guarded by
-`creates:` so re-runs don't regenerate them), templates
-`/etc/wireguard/wg0.conf` and an ifupdown `interfaces.d/wg0` stanza,
-and brings the tunnel up — all in one playbook run. `wg0` is brought up
-with plain `ip`/`wg` commands in ifupdown's `pre-up`/`post-down` hooks,
-not `wg-quick`; activating a config change restarts the `networking`
-service. The role defaults to `wireguard_enabled: false` as a safe
-fallback, so a fresh clone doesn't need any peer configured just to
-pass `make check`/lint, same pattern as `roles/wireless` and
-`roles/vector`.
+The `wireguard` Ansible role (`roles/wireguard/tasks/main.yml`) installs
+[WireGuard](https://www.wireguard.com/) (a VPN protocol), idempotently
+generates the node's private/public keypair (`/etc/wireguard/wg0` /
+`/etc/wireguard/wg0.pub`, guarded by `creates:` so re-runs don't
+regenerate them), templates `/etc/wireguard/wg0.conf` and an ifupdown
+`interfaces.d/wg0` stanza, and brings the tunnel up — all in one
+playbook run. `wg0` is brought up with plain `ip`/`wg` commands in
+ifupdown's `pre-up`/`post-down` hooks, not `wg-quick`; activating a
+config change restarts the `networking` service.
 
 The one thing this repo can't automate is registering this node with
 the remote WireGuard server, since that's a separate system outside
@@ -447,18 +449,18 @@ this repo's scope. Everything else is driven by variables:
    `10.254.10.10/32`.
 
 2. The peer's public key and endpoint are stored as individually
-   [vault-encrypted](https://docs.ansible.com/ansible/latest/vault_guide/vault_encrypting_content.html#encrypting-individual-variables-with-ansible-vault)
-   variables, since even values that aren't secrets on their own (a
-   public key, a hostname) can identify or locate the remote server if
-   leaked through a public repo's git history. `wireguard_peer_allowed_ips`
-   (the tunnel subnet, e.g. `10.254.10.0/24`) isn't identifying on its
-   own, so it stays plaintext, same reasoning as `wireless_gateway`.
-   Both boards share the same remote VPN server, so all three live once
-   in a committed `group_vars/all/wireguard.yml`. Generate the
-   encrypted blocks — the commands below assume
-   `ANSIBLE_VAULT_PASSWORD_FILE` is already set (see "Ansible Vault
-   password" below); pass `--ask-vault-pass` instead if you haven't set
-   that up yet:
+   vault-encrypted variables (see
+   [Ansible Vault password](#ansible-vault-password) above), since even
+   values that aren't secrets on their own (a public key, a hostname)
+   can identify or locate the remote server if leaked through a public
+   repo's git history. `wireguard_peer_allowed_ips` (the tunnel subnet,
+   e.g. `10.254.10.0/24`) isn't identifying on its own, so it stays
+   plaintext, same reasoning as `wireless_gateway`. Both boards share the
+   same remote VPN server, so all three live once in a committed
+   `group_vars/all/wireguard.yml`. Generate the encrypted blocks — the
+   commands below assume `ANSIBLE_VAULT_PASSWORD_FILE` is already set
+   (see [Ansible Vault password](#ansible-vault-password) above); pass
+   `--ask-vault-pass` instead if you haven't set that up yet:
 
    ```sh
    ansible-vault encrypt_string --stdin-name 'wireguard_peer_public_key'
@@ -492,10 +494,10 @@ this repo's scope. Everything else is driven by variables:
    wireguard_address: 10.254.10.10/24
    ```
 
-4. Commit the files, then apply them as described in "Ansible Vault
-   password" below. The role templates `wg0.conf`/`interfaces.d/wg0`
-   and restarts the `networking` service to bring the tunnel up — no
-   manual activation needed.
+4. Commit the files, then apply them as described in
+   [Ansible Vault password](#ansible-vault-password) above. The role
+   templates `wg0.conf`/`interfaces.d/wg0` and restarts the `networking`
+   service to bring the tunnel up — no manual activation needed.
 
 5. Verify the tunnel:
 
@@ -507,6 +509,92 @@ this repo's scope. Everything else is driven by variables:
    A working connection shows a `peer:` section, a recent
    `latest handshake`, and non-zero sent and received transfer
    counters.
+
+### Vector log export
+
+RPi3 runs [Vector](https://vector.dev/) via the `vector` Ansible role
+(`roles/vector/tasks/main.yml`), forwarding its
+[journald](https://www.freedesktop.org/software/systemd/man/latest/systemd-journald.service.html)
+(systemd's logging service) logs to Google Cloud Logging through
+Vector's `gcp_stackdriver_logs` sink. The role installs Vector from its
+official APT repository (guarded so the setup script only runs once, not
+on every play), templates `/etc/vector/vector.yaml`, and writes the GCP
+service account key to `/etc/rpi-observability/`.
+
+The GCP project ID and the service account key are both stored as
+individually vault-encrypted variables (see
+[Ansible Vault password](#ansible-vault-password) above) in
+`group_vars/rpi3/vector.yml`, since this repository is public and
+neither should be committed in plaintext.
+
+To set it up, first create a dedicated Google Cloud service account
+scoped to only
+[`roles/logging.logWriter`](https://cloud.google.com/logging/docs/access-control#logging_permission_types)
+(Logs Writer) at the project level, so Vector can write log entries and
+nothing else. Using the
+[Cloud Console](https://console.cloud.google.com/iam-admin/serviceaccounts):
+
+1. Enable the Cloud Logging API for your project, if it isn't already.
+2. Under **IAM & Admin > Service Accounts**, create a new service
+   account — give it a descriptive ID (e.g. `vector-cloud-logging`) and
+   name.
+3. Grant it only the **Logs Writer** (`roles/logging.logWriter`) role
+   at the project level; skip any broader role.
+4. Open the new service account's **Keys** tab, then
+   **Add Key > Create new key > JSON**, and download it. Note where it lands
+   locally — you'll reference that path below.
+
+Never commit, print, or upload the downloaded key JSON anywhere — only
+its service-account email and local file path are safe to share; see
+[Best practices for managing service account keys](https://cloud.google.com/iam/docs/best-practices-for-managing-service-account-keys).
+Getting the key onto the Pi itself is handled below and by the `vector`
+role (`roles/vector/tasks/main.yml`), which writes it to
+`/etc/rpi-observability/` with non-world-readable permissions — no
+manual `scp`/`chmod` needed.
+
+With the downloaded key file in hand, generate the two encrypted
+blocks. The commands below assume `ANSIBLE_VAULT_PASSWORD_FILE` is
+already set (see [Ansible Vault password](#ansible-vault-password)
+above); pass `--ask-vault-pass` instead if you haven't set that up yet.
+Reading from stdin, rather than passing the values as command-line
+arguments, keeps them out of your shell history:
+
+```sh
+ansible-vault encrypt_string --stdin-name 'vector_gcp_project_id'
+# type your GCP project ID, then press Ctrl-d
+ansible-vault encrypt_string --stdin-name 'vector_gcp_credentials_json' < path/to/key.json
+```
+
+Edit `group_vars/rpi3/vector.yml` with `vector_enabled: true` and the
+two encrypted blocks output above:
+
+```yaml
+---
+vector_enabled: true
+vector_gcp_project_id: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          66386439653236336462626566653063336164663966303231363934653561363...
+vector_gcp_credentials_json: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          32643361393835653136306164393433656333383761346130336436393730323...
+```
+
+Commit the file, then apply it as described in
+[Ansible Vault password](#ansible-vault-password) above. To validate
+it's working:
+
+```sh
+vector validate /etc/vector/vector.yaml
+systemctl status vector.service
+logger -t rpi3-vector-poc "Cloud Logging test $(date --iso-8601=seconds)"
+```
+
+Then check the Google Cloud Logs Explorer for the tagged test event.
+
+## Maintenance
+
+Unlike the sections above, this covers ongoing upkeep for a board that's
+already set up and running — not part of the first-time setup.
 
 ### Upgrading Debian
 
@@ -586,15 +674,15 @@ Pi.
    packages from the previous Debian release:
 
    ```sh
-   sudo apt purge <package-name>...
+   apt purge <package-name>...
    ```
 
    Optionally preview and remove automatically installed dependencies that are
    no longer required:
 
    ```sh
-   sudo apt autoremove --purge --simulate
-   sudo apt autoremove --purge
+   apt autoremove --purge --simulate
+   apt autoremove --purge
    ```
 
 ## Monitoring
@@ -617,70 +705,23 @@ curl -fsS http://<rpi3-address>:9100/metrics | head
 ```
 
 RPi3's logs (as opposed to metrics) are handled separately, via the
-`vector` role forwarding journald to Google Cloud Logging — see the
-"Vector log export" section above.
+`vector` role forwarding journald to Google Cloud Logging — see
+[Vector log export](#vector-log-export) above.
 
-## Serial console connection
+## Acknowledgements
 
-To establish a serial console connection, connect the USB-to-TTL cable
-leads to the GPIO header located on the edge of the board — RPi3 and
-RPi4 share the same 40-pin header and pin layout.
-
-> :information_source: On RPi3, this connection only becomes usable
-> after the first boot has been completed via monitor and keyboard —
-> see [Your first run](#your-first-run).
-
-<!-- -->
-
-> :warning: DO NOT connect the Red (5V) wire.
-> Connecting it will damage the board.
-
-The connection requires a *crossover* configuration: The cable's Receiver (RX)
-connects to the Pi's Transmitter (TX), and vice versa.
-
-| Wire Color | Cable Function | Connect to Pi Pin | Pi Pin Function | Description                                           |
-| :--------- | :------------- | :---------------- | :-------------- | :---------------------------------------------------- |
-| **Red**    | 5V VCC         | **NC**            | 5V Power        | **Leave Disconnected**                                |
-| **Black**  | GND            | **Pin 6**         | Ground          | Common Ground reference                               |
-| **White**  | RX (Receive)   | **Pin 8**         | GPIO 14 (TXD)   | Pi transmits data → Cable receives                    |
-| **Green**  | TX (Transmit)  | **Pin 10**        | GPIO 15 (RXD)   | Cable transmits data → Pi receives                    |
-
-The diagram below represents the top-left corner of the Pi's GPIO
-header (the end closest to the SD card slot).
-Connections are made to the outer row of pins.
-
-```text
-      [Edge of Board]
-      
-      (3V3)  [01]  [02]  (5V)
-      (SDA)  [03]  [04]  (5V)
-      (SCL)  [05]  [06]  GND  <─── Connect BLACK Wire
-      (GP4)  [07]  [08]  TXD  <─── Connect WHITE Wire
-      (GND)  [09]  [10]  RXD  <─── Connect GREEN Wire
-             [11]  [12]  (GP18)
-             ...   ...
-```
-
-On macOS, ou can use `screen` to connect to the board with this command:
-
-```sh
-screen /dev/cu.usbserial-1140 115200
-```
-
-where `cu.usbserial-1140` is the device representing the serial connection.
-
-To close the serial communication session use the following commands to get the
-session ID and close it.
-
-```sh
-screen -ls
-screen -r <SESSION_ID>
-```
-
-Or you can tpye `C-a C-d`.
+I thank @iamleot for his work
+[iamleot/rpi-ansible](https://github.com/iamleot/rpi-ansible) from which I
+created this fork.
+This repository includes code that he further added in original codebase to
+keep this project up-to-date and well-maintained.
 
 ## See also
 
+- [Ansible Vault documentation](https://docs.ansible.com/ansible/latest/vault_guide/index.html)
+- [k3s documentation](https://docs.k3s.io/)
+- [Prometheus Node Exporter](https://github.com/prometheus/node_exporter)
+- [Vector documentation](https://vector.dev/docs/)
 - [Serial communication over UART Raspberry Pi 4](https://forums.raspberrypi.com/viewtopic.php?t=307094)
 - [WireGuard — Debian Wiki](https://wiki.debian.org/WireGuard)
 - [rpi-flux](https://github.com/gilbertotcc/rpi-flux)
