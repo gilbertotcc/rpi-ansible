@@ -10,18 +10,19 @@ Debian stable: a Raspberry Pi 4 (RPi4), plus a Raspberry Pi 3 (RPi3) as
 a second, lighter-weight board. RPi4 also runs a single-node Kubernetes
 cluster powered by [k3s](https://k3s.io/); RPi3 instead runs Prometheus
 Node Exporter, exposing host metrics for the RPi4/Flux-managed
-Prometheus to scrape. Forked from
+Prometheus to scrape, and Vector, forwarding its journald logs to
+Google Cloud Logging. Forked from
 [iamleot/rpi-ansible](https://github.com/iamleot/rpi-ansible).
 `hosts.ini` defines two groups — `rpi4` and `rpi3` — both connected to
 as `root` (see `ansible.cfg`). `playbook.yml` targets `hosts: all`; all
 roles apply to both hosts except `roles/k3s`, which is gated to the
 `rpi4` group only, via `when: inventory_hostname in groups['rpi4']` on
 that role entry in `playbook.yml`'s `roles:` list — RPi3's more limited
-hardware runs no k3s node — and `roles/node_exporter`, gated the same
-way to the `rpi3` group only. Per-host values (hostname, WiFi static IP) live in
-`group_vars/rpi4/` and `group_vars/rpi3/`; WiFi SSID/PSK are the same
-real network for both boards, so they live in `group_vars/all/`
-instead. _Last updated: 2026-08-22._
+hardware runs no k3s node — and `roles/node_exporter`/`roles/vector`,
+gated the same way to the `rpi3` group only. Per-host values (hostname,
+WiFi static IP) live in `group_vars/rpi4/` and `group_vars/rpi3/`; WiFi
+SSID/PSK are the same real network for both boards, so they live in
+`group_vars/all/` instead. _Last updated: 2026-08-23._
 
 ## Commands
 
@@ -88,10 +89,15 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
      `0.0.0.0:9100`) for the separately managed RPi4/Flux Prometheus to
      scrape (RPi3 only — gated via `when:` in `playbook.yml`; see
      README.md's "Monitoring" section)
-  9. `roles/k3s` — install/upgrade k3s to the version pinned by
-     `k3s_version` in `playbook.yml`, using
-     `roles/k3s/templates/k3s-config.yaml.j2` (RPi4 only — gated via
-     `when:` in `playbook.yml`)
+  9. `roles/vector` — install Vector and forward RPi3's journald logs to
+     Google Cloud Logging via the `gcp_stackdriver_logs` sink
+     (`vector_enabled`, defaults to `false` as a safe fallback, same
+     pattern as `roles/wireless`; RPi3 only — gated via `when:` in
+     `playbook.yml`; see README.md's "Vector log export" section)
+  10. `roles/k3s` — install/upgrade k3s to the version pinned by
+      `k3s_version` in `playbook.yml`, using
+      `roles/k3s/templates/k3s-config.yaml.j2` (RPi4 only — gated via
+      `when:` in `playbook.yml`)
 - Order matters: later roles assume earlier ones already ran (packages
   installed, hostname set, etc.). When adding a new concern, add a new
   `roles/<name>/` directory (with `tasks/main.yml` and, as needed,
@@ -118,6 +124,12 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   `ansible-vault encrypt_string` rather than whole-file vault encryption,
   so `make check`/CI can parse the file with no vault password available.
   See the "WiFi network" section of `README.md` for the exact commands.
+- `vector_gcp_project_id`/`vector_gcp_credentials_json` (used by
+  `roles/vector`) follow the same per-variable vault-encryption pattern,
+  in `group_vars/rpi3/vector.yml` — the GCP project ID and service
+  account key must never be committed to this public repository either.
+  See the "Vector log export" section of `README.md` for the exact
+  commands.
 - `.envrc` and `scripts/ansible-vault-password.sh` give non-interactive vault
   password delivery (`ANSIBLE_VAULT_PASSWORD_FILE`) via direnv + gopass.
 - Values a role's tasks may need to vary (package lists, the DNS resolver

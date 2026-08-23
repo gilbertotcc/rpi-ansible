@@ -1,0 +1,88 @@
+---
+#
+# Install and configure Vector to export journald logs to Google Cloud
+# Logging.
+#
+# vector_gcp_project_id and vector_gcp_credentials_json are expected to
+# come from an ansible-vault-encrypted group_vars file (see README.md)
+# and must never be stored unencrypted in this repository.
+# vector_enabled defaults to false here as a safe fallback, same pattern
+# as roles/wireless.
+#
+# The official install script only sets up Vector's APT repository, so
+# it's guarded to run once (Vector not already installed) rather than on
+# every play.
+#
+
+- name: Check vector_gcp_project_id/vector_gcp_credentials_json are set.
+  delegate_to: localhost
+  ansible.builtin.assert:
+    that:
+      - vector_gcp_project_id | length > 0
+      - vector_gcp_credentials_json | length > 0
+    fail_msg: >
+      vector_enabled is true but vector_gcp_project_id and/or
+      vector_gcp_credentials_json are empty. Populate them via an
+      ansible-vault-encrypted group_vars file.
+    quiet: true
+  when: vector_enabled
+- name: Check if Vector is already installed.
+  ansible.builtin.stat:
+    path: /usr/bin/vector
+  register: vector_binary_stat
+  when: vector_enabled
+- name: Install Vector APT repository if needed.
+  become: true
+  ansible.builtin.shell:
+    cmd: bash -c "$(curl -L https://setup.vector.dev)"
+  changed_when: true
+  when: vector_enabled and not vector_binary_stat.stat.exists
+- name: Update apt cache if needed.
+  become: true
+  ansible.builtin.apt:
+    cache_valid_time: 3600
+    update_cache: true
+  when: vector_enabled
+- name: Install Vector if needed.
+  become: true
+  ansible.builtin.apt:
+    name: vector
+    state: present
+  when: vector_enabled
+- name: Ensure GCP credentials directory exists.
+  become: true
+  ansible.builtin.file:
+    path: "{{ vector_gcp_credentials_dir }}"
+    state: directory
+    owner: root
+    group: vector
+    mode: "0750"
+  when: vector_enabled
+- name: Populate GCP credentials file.
+  become: true
+  ansible.builtin.copy:
+    content: "{{ vector_gcp_credentials_json }}"
+    dest: "{{ vector_gcp_credentials_path }}"
+    owner: root
+    group: vector
+    mode: "0640"
+  no_log: true
+  notify: Restart Vector.
+  when: vector_enabled
+- name: Populate Vector configuration.
+  become: true
+  ansible.builtin.template:
+    src: vector.yaml.j2
+    dest: /etc/vector/vector.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart Vector.
+  when: vector_enabled
+- name: Enable and start Vector.
+  become: true
+  ansible.builtin.service:
+    name: vector
+    enabled: true
+    state: started
+  when: vector_enabled
