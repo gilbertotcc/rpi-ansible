@@ -55,8 +55,8 @@
     path: "{{ vector_gcp_credentials_dir }}"
     state: directory
     owner: root
-    group: root
-    mode: "0700"
+    group: vector
+    mode: "0750"
   when: vector_enabled
 - name: Populate GCP credentials file.
   become: true
@@ -64,8 +64,8 @@
     content: "{{ vector_gcp_credentials_json }}"
     dest: "{{ vector_gcp_credentials_path }}"
     owner: root
-    group: root
-    mode: "0600"
+    group: vector
+    mode: "0640"
   no_log: true
   notify: Restart Vector.
   when: vector_enabled
