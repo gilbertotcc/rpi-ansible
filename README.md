@@ -187,6 +187,23 @@ it, in its own subsection below.
 - `wireless_gateway` — required when `wireless_enabled: true` — that
   host's WiFi network's gateway IP — `group_vars/<group>/wireless.yml`.
 
+**[WireGuard VPN](#wireguard-vpn):**
+
+- `wireguard_enabled` — optional, defaults to `false` — enables the
+  `wireguard` role for that host — `group_vars/<group>/wireguard.yml`.
+- `wireguard_peer_public_key` — required when `wireguard_enabled: true`
+  (vault-encrypted) — the remote VPN peer's public key —
+  `group_vars/all/wireguard.yml`.
+- `wireguard_peer_allowed_ips` — required when `wireguard_enabled: true`
+  — the tunnel subnet allowed through the peer, e.g. `10.254.10.0/24`
+  — `group_vars/all/wireguard.yml`.
+- `wireguard_peer_endpoint` — required when `wireguard_enabled: true`
+  (vault-encrypted) — the remote peer's `host:port` —
+  `group_vars/all/wireguard.yml`.
+- `wireguard_address` — required when `wireguard_enabled: true` — that
+  host's tunnel IP for `wg0`, in CIDR notation —
+  `group_vars/<group>/wireguard.yml`.
+
 **[Vector log export](#vector-log-export)** (RPi3 only):
 
 - `vector_enabled` — optional, defaults to `false` — enables the
@@ -397,17 +414,31 @@ your password manager caches its own unlock.
 ### WireGuard VPN
 
 The `wireguard` Ansible role (`roles/wireguard/tasks/main.yml`)
-installs WireGuard and idempotently generates the node's private/public
+installs WireGuard, idempotently generates the node's private/public
 keypair (`/etc/wireguard/wg0` / `/etc/wireguard/wg0.pub`, guarded by
-`creates:` so re-runs don't regenerate them). It does not yet configure
-the remote peer or bring the `wg0` interface up — see
-[issue #21](https://github.com/gilbertotcc/rpi-ansible/issues/21) for
-the plan to automate the rest. Until then, complete the tunnel setup
-by hand, as `root` on the Pi:
+`creates:` so re-runs don't regenerate them), templates
+`/etc/wireguard/wg0.conf` and an ifupdown `interfaces.d/wg0` stanza,
+and brings the tunnel up — all in one playbook run. `wg0` is brought up
+with plain `ip`/`wg` commands in ifupdown's `pre-up`/`post-down` hooks,
+not `wg-quick`; activating a config change restarts the `networking`
+service. The role defaults to `wireguard_enabled: false` as a safe
+fallback, so a fresh clone doesn't need any peer configured just to
+pass `make check`/lint, same pattern as `roles/wireless` and
+`roles/vector`.
 
-1. Read this node's public key:
+The one thing this repo can't automate is registering this node with
+the remote WireGuard server, since that's a separate system outside
+this repo's scope. Everything else is driven by variables:
+
+1. Generate this node's keypair and read its public key. If the node
+   already has one, skip straight to reading `/etc/wireguard/wg0.pub`;
+   otherwise generate one by hand as `root` first, since the role only
+   (re)generates keys once `wireguard_enabled` is already `true`:
 
    ```sh
+   # only if /etc/wireguard/wg0 doesn't already exist
+   (umask 0077; wg genkey > /etc/wireguard/wg0)
+   wg pubkey < /etc/wireguard/wg0 > /etc/wireguard/wg0.pub
    cat /etc/wireguard/wg0.pub
    ```
 
@@ -415,60 +446,56 @@ by hand, as `root` on the Pi:
    server must also allow this client's assigned tunnel address, e.g.
    `10.254.10.10/32`.
 
-2. Create `/etc/wireguard/wg0.conf`:
+2. The peer's public key and endpoint are stored as individually
+   [vault-encrypted](https://docs.ansible.com/ansible/latest/vault_guide/vault_encrypting_content.html#encrypting-individual-variables-with-ansible-vault)
+   variables, since even values that aren't secrets on their own (a
+   public key, a hostname) can identify or locate the remote server if
+   leaked through a public repo's git history. `wireguard_peer_allowed_ips`
+   (the tunnel subnet, e.g. `10.254.10.0/24`) isn't identifying on its
+   own, so it stays plaintext, same reasoning as `wireless_gateway`.
+   Both boards share the same remote VPN server, so all three live once
+   in a committed `group_vars/all/wireguard.yml`. Generate the
+   encrypted blocks — the commands below assume
+   `ANSIBLE_VAULT_PASSWORD_FILE` is already set (see "Ansible Vault
+   password" below); pass `--ask-vault-pass` instead if you haven't set
+   that up yet:
 
    ```sh
-   vim /etc/wireguard/wg0.conf
+   ansible-vault encrypt_string --stdin-name 'wireguard_peer_public_key'
+   # type the remote peer's public key, then press Ctrl-d
+   ansible-vault encrypt_string --stdin-name 'wireguard_peer_endpoint'
+   # e.g. vpn.example.com:51820, then press Ctrl-d
    ```
 
-   ```ini
-   [Interface]
-   PrivateKey = <contents of /etc/wireguard/wg0>
-   ListenPort = 51820
+   Create (or edit) `group_vars/all/wireguard.yml` with the two
+   encrypted blocks output above, plus the plaintext
+   `wireguard_peer_allowed_ips`:
 
-   [Peer]
-   # Public key of the remote WireGuard peer/server, not this node's own key.
-   PublicKey = <REMOTE_PEER_PUBLIC_KEY>
-   AllowedIPs = 10.254.10.0/24
-   Endpoint = <REMOTE_PUBLIC_IP_OR_DNS>:51820
-   PersistentKeepalive = 25
+   ```yaml
+   ---
+   wireguard_peer_public_key: !vault |
+             $ANSIBLE_VAULT;1.1;AES256
+             66386439653236336462626566653063336164663966303231363934653561363...
+   wireguard_peer_allowed_ips: 10.254.10.0/24
+   wireguard_peer_endpoint: !vault |
+             $ANSIBLE_VAULT;1.1;AES256
+             39346137353339663836316133333061633837666561633363393062373238633...
    ```
 
-   Replace the placeholders with the values supplied by the remote VPN
-   administrator. `PrivateKey` is the actual Base64 key content from
-   `/etc/wireguard/wg0`, not a path to that file; `PublicKey` under
-   `[Peer]` is the *remote* peer's key, not this node's own
-   `wg0.pub`.
+3. This node's tunnel address isn't secret, so create (or edit) each
+   host's `group_vars/<group>/wireguard.yml` with
+   `wireguard_enabled: true` and its plaintext `wireguard_address`, e.g.:
 
-   Restrict the file's permissions, since it embeds the private key:
-
-   ```sh
-   chmod 600 /etc/wireguard/wg0.conf
+   ```yaml
+   ---
+   wireguard_enabled: true
+   wireguard_address: 10.254.10.10/24
    ```
 
-3. Create `/etc/network/interfaces.d/wg0`:
-
-   ```sh
-   vim /etc/network/interfaces.d/wg0
-   ```
-
-   ```none
-   auto wg0
-   iface wg0 inet static
-           address 10.254.10.10/24
-           pre-up wg-quick up $IFACE
-           pre-down wg-quick down $IFACE
-   ```
-
-   Replace `10.254.10.10/24` with this node's assigned VPN address.
-
-4. Activate the configuration:
-
-   ```sh
-   service networking restart
-   ```
-
-   Alternatively, reboot the node.
+4. Commit the files, then apply them as described in "Ansible Vault
+   password" below. The role templates `wg0.conf`/`interfaces.d/wg0`
+   and restarts the `networking` service to bring the tunnel up — no
+   manual activation needed.
 
 5. Verify the tunnel:
 

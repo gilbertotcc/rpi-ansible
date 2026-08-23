@@ -41,8 +41,10 @@ or lint configs complete — this is exactly what the `ansible.yaml` CI workflow
 
 `group_vars/all/wireless.yml`, `group_vars/rpi4/wireless.yml`, and
 `group_vars/rpi3/wireless.yml` hold vault-encrypted WiFi credentials
-(see `roles/wireless` below), so `make run` needs a vault password to
-decrypt them. With
+(see `roles/wireless` below); `group_vars/all/wireguard.yml` similarly
+holds the vault-encrypted WireGuard peer values (see `roles/wireguard`
+below), once populated. `make run` needs a vault password to decrypt
+these. With
 `.envrc`/`scripts/ansible-vault-password.sh` set up (direnv + gopass —
 see the "Ansible Vault password" section of `README.md`), plain
 `make run` works out of the box.
@@ -83,7 +85,13 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
      (`dns_resolver_package`/`dns_resolver_service`, default `unbound`),
      point `/etc/resolv.conf` at it
   7. `roles/wireguard` — install WireGuard, generate keys idempotently (uses
-     `creates:` guards)
+     `creates:` guards), and — once `wireguard_enabled` (defaults to
+     `false` as a safe fallback, same pattern as `roles/wireless`) plus
+     the peer values are supplied — template `/etc/wireguard/wg0.conf`
+     and an ifupdown `interfaces.d/wg0` stanza and bring the tunnel up.
+     `wg0` is deliberately brought up via plain `ip`/`wg` commands in
+     ifupdown hooks, not `wg-quick`; activation restarts the
+     `networking` service (see README.md's "WireGuard VPN" section)
   8. `roles/node_exporter` — install/configure `prometheus-node-exporter`,
      exposing host metrics on `node_exporter_listen_address` (default
      `0.0.0.0:9100`) for the separately managed RPi4/Flux Prometheus to
@@ -130,6 +138,13 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   account key must never be committed to this public repository either.
   See the "Vector log export" section of `README.md` for the exact
   commands.
+- `wireguard_peer_public_key`/`wireguard_peer_allowed_ips`/
+  `wireguard_peer_endpoint` (used by `roles/wireguard`) follow the same
+  per-variable vault-encryption pattern, shared by both boards (same
+  remote VPN server) in `group_vars/all/wireguard.yml`; each host's
+  plaintext `wireguard_enabled`/`wireguard_address` live in
+  `group_vars/rpi4/wireguard.yml`/`group_vars/rpi3/wireguard.yml`. See
+  the "WireGuard VPN" section of `README.md` for the exact commands.
 - `.envrc` and `scripts/ansible-vault-password.sh` give non-interactive vault
   password delivery (`ANSIBLE_VAULT_PASSWORD_FILE`) via direnv + gopass.
 - Values a role's tasks may need to vary (package lists, the DNS resolver
