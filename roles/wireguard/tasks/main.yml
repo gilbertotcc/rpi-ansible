@@ -2,17 +2,52 @@
 #
 # Setup and configure WireGuard.
 #
+# wireguard_peer_public_key, wireguard_peer_allowed_ips and
+# wireguard_peer_endpoint are expected to come from an
+# ansible-vault-encrypted group_vars file (see README.md) and must
+# never be stored unencrypted in this repository. wireguard_enabled
+# defaults to false here as a safe fallback, same pattern as
+# roles/wireless and roles/vector.
+#
+# The wg0 interface is brought up via ifupdown (interfaces.d/wg0), not
+# wg-quick: pre-up/post-down hooks create/destroy the WireGuard netlink
+# device and load its config with plain ip(8)/wg(8) commands, and
+# ifupdown itself assigns the address, same as for wlan0.
+#
 
+- name: Check WireGuard address/peer values are set when enabled.
+  delegate_to: localhost
+  ansible.builtin.assert:
+    that:
+      - wireguard_address | length > 0
+      - wireguard_peer_public_key | length > 0
+      - wireguard_peer_allowed_ips | length > 0
+      - wireguard_peer_endpoint | length > 0
+    fail_msg: >
+      wireguard_enabled is true but wireguard_address,
+      wireguard_peer_public_key, wireguard_peer_allowed_ips and/or
+      wireguard_peer_endpoint are empty. Populate the peer values via
+      an ansible-vault-encrypted group_vars file.
+    quiet: true
+  when: wireguard_enabled
 - name: Update apt cache if needed.
   become: true
   ansible.builtin.apt:
     cache_valid_time: 3600
     update_cache: true
+  when: wireguard_enabled
 - name: Install WireGuard if needed.
   become: true
   ansible.builtin.apt:
     name: wireguard
     state: present
+  when: wireguard_enabled
+- name: Install ifupdown if needed.
+  become: true
+  ansible.builtin.apt:
+    name: ifupdown
+    state: present
+  when: wireguard_enabled
 - name: Generate WireGuard private key if needed.
   become: true
   ansible.builtin.shell:
@@ -23,6 +58,7 @@
         rm -f /etc/wireguard/wg0.pub
       fi
     creates: /etc/wireguard/wg0
+  when: wireguard_enabled
 - name: Ensure WireGuard private key is readable only by root.
   become: true
   ansible.builtin.file:
@@ -31,10 +67,48 @@
     owner: root
     group: root
     mode: '0600'
+  when: wireguard_enabled
 - name: Generate WireGuard public key if needed.
   become: true
   ansible.builtin.shell:
     cmd: |
       wg pubkey < /etc/wireguard/wg0 > /etc/wireguard/wg0.pub
     creates: /etc/wireguard/wg0.pub
-# TODO: Populate /etc/network/interfaces.d/wg0
+  when: wireguard_enabled
+- name: Ensure /etc/network/interfaces.d exists.
+  become: true
+  ansible.builtin.file:
+    path: /etc/network/interfaces.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: wireguard_enabled
+- name: Read WireGuard private key.
+  become: true
+  ansible.builtin.slurp:
+    src: /etc/wireguard/wg0
+  register: wireguard_private_key
+  no_log: true
+  when: wireguard_enabled
+- name: Populate WireGuard interface configuration.
+  become: true
+  ansible.builtin.template:
+    src: wg0.conf.j2
+    dest: /etc/wireguard/wg0.conf
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  notify: Restart networking service.
+  when: wireguard_enabled
+- name: Populate WireGuard network interface.
+  become: true
+  ansible.builtin.template:
+    src: wg0.j2
+    dest: /etc/network/interfaces.d/wg0
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart networking service.
+  when: wireguard_enabled

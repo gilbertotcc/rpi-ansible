@@ -1,0 +1,6 @@
+auto wg0
+iface wg0 inet static
+    address {{ wireguard_address }}
+    pre-up ip link add dev wg0 type wireguard || true
+    pre-up wg setconf wg0 /etc/wireguard/wg0.conf
+    post-down ip link delete dev wg0

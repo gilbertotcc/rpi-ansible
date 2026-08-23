@@ -1,0 +1,10 @@
+---
+#
+# Handlers for wireguard.
+#
+
+- name: Restart networking service.
+  become: true
+  ansible.builtin.service:
+    name: networking
+    state: restarted
