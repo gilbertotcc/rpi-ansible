@@ -250,9 +250,10 @@ individually
 variables in `group_vars/rpi3/vector.yml`, since this repository is
 public and neither should be committed in plaintext.
 
-To set it up, first create a dedicated Google Cloud [service
-account](https://cloud.google.com/sdk/gcloud/reference/iam/service-accounts/create)
-scoped to only [`roles/logging.logWriter`](https://cloud.google.com/logging/docs/access-control#logging_permission_types)
+To set it up, first create a dedicated Google Cloud
+[service account](https://cloud.google.com/sdk/gcloud/reference/iam/service-accounts/create)
+scoped to only
+[`roles/logging.logWriter`](https://cloud.google.com/logging/docs/access-control#logging_permission_types)
 at the project level, so Vector can write log entries and nothing else.
 Substitute your own project and service-account IDs, then run:
 
@@ -284,8 +285,8 @@ printf 'Service account: %s\nKey file: %s\n' "${SA_EMAIL}" "${KEY_FILE}"
 `umask 077` keeps the generated key file readable only by you. Never
 commit, print, or upload the key JSON anywhere — the email and
 `KEY_FILE` path printed above are the only output that's safe to share;
-see [Best practices for managing service account
-keys](https://cloud.google.com/iam/docs/best-practices-for-managing-service-account-keys).
+see
+[Best practices for managing service account keys](https://cloud.google.com/iam/docs/best-practices-for-managing-service-account-keys).
 Getting the key onto the Pi itself is handled below and by the `vector`
 role (`roles/vector/tasks/main.yml`), which writes it to
 `/etc/rpi-observability/` with non-world-readable permissions — no
