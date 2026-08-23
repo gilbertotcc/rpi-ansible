@@ -431,10 +431,9 @@ the remote WireGuard server, since that's a separate system outside
 this repo's scope. Everything else is driven by variables:
 
 1. Generate this node's keypair and read its public key. If the node
-   already has one (both boards do today), skip straight to reading
-   `/etc/wireguard/wg0.pub`; otherwise generate one by hand as `root`
-   first, since the role only (re)generates keys once
-   `wireguard_enabled` is already `true`:
+   already has one, skip straight to reading `/etc/wireguard/wg0.pub`;
+   otherwise generate one by hand as `root` first, since the role only
+   (re)generates keys once `wireguard_enabled` is already `true`:
 
    ```sh
    # only if /etc/wireguard/wg0 doesn't already exist
@@ -484,8 +483,8 @@ this repo's scope. Everything else is driven by variables:
    ```
 
 3. This node's tunnel address isn't secret, so create (or edit) each
-   host's `group_vars/<group>/wireguard.yml` with `wireguard_enabled:
-   true` and its plaintext `wireguard_address`, e.g.:
+   host's `group_vars/<group>/wireguard.yml` with
+   `wireguard_enabled: true` and its plaintext `wireguard_address`, e.g.:
 
    ```yaml
    ---
