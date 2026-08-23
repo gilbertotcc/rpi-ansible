@@ -159,6 +159,45 @@ again.
 
 ## Manual configurations
 
+### Configuration variables
+
+Before `make run` does anything useful, define these variables in the
+listed files. Each is covered in full, with the exact commands to set
+it, in its own subsection below.
+
+**Network:**
+
+- `network_hostname` — required — the hostname to set on the board —
+  `group_vars/<group>/network.yml` (`group_vars/rpi4/network.yml`,
+  `group_vars/rpi3/network.yml`).
+
+**[WiFi network](#wifi-network):**
+
+- `wireless_enabled` — optional, defaults to `false` — enables the
+  `wireless` role for that host — `group_vars/<group>/wireless.yml`.
+- `wireless_ssid` — required when `wireless_enabled: true`
+  (vault-encrypted) — the shared WiFi network's SSID —
+  `group_vars/all/wireless.yml`.
+- `wireless_psk` — required when `wireless_enabled: true`
+  (vault-encrypted) — the shared WiFi network's password —
+  `group_vars/all/wireless.yml`.
+- `wireless_address` — required when `wireless_enabled: true` — that
+  host's static IP for `wlan0`, in CIDR notation —
+  `group_vars/<group>/wireless.yml`.
+- `wireless_gateway` — required when `wireless_enabled: true` — that
+  host's WiFi network's gateway IP — `group_vars/<group>/wireless.yml`.
+
+**[Vector log export](#vector-log-export)** (RPi3 only):
+
+- `vector_enabled` — optional, defaults to `false` — enables the
+  `vector` role — `group_vars/rpi3/vector.yml`.
+- `vector_gcp_project_id` — required when `vector_enabled: true`
+  (vault-encrypted) — the GCP project ID logs are written to —
+  `group_vars/rpi3/vector.yml`.
+- `vector_gcp_credentials_json` — required when `vector_enabled: true`
+  (vault-encrypted) — the downloaded service account key JSON —
+  `group_vars/rpi3/vector.yml`.
+
 ### WiFi network
 
 WiFi is configured by the `wireless` Ansible role
