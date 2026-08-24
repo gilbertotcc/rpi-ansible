@@ -12,7 +12,6 @@
     - role: journald
     - role: zram
     - role: network
-    - role: wireless
     - role: dns_resolver
     - role: wireguard
     - role: node_exporter

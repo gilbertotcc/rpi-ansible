@@ -23,7 +23,7 @@ exposing host metrics for the RPi4-managed Prometheus to scrape, and
 - [Configuration and manual setup](#configuration-and-manual-setup)
   - [Configuration variables](#configuration-variables)
   - [Ansible Vault password](#ansible-vault-password)
-  - [WiFi network](#wifi-network)
+  - [Ethernet network](#ethernet-network)
   - [WireGuard VPN](#wireguard-vpn)
   - [Vector log export](#vector-log-export)
 - [Maintenance](#maintenance)
@@ -110,9 +110,9 @@ keyboard.
   [Serial console connection](#serial-console-connection)).
 
 > :information_source: Connect the board to your router over Ethernet
-> for this section. WiFi is not configured until the `wireless` role
-> runs (see [WiFi network](#wifi-network)), so a wired connection is
-> what gets you online for the package/SSH setup below.
+> for this section — it's this board's permanent network connection
+> (see [Ethernet network](#ethernet-network)), and it's also what gets
+> you online for the package/SSH setup below.
 
 The image ships with no root password: at the login prompt, enter
 `root` as the username and press `Enter` for the password.
@@ -237,9 +237,9 @@ The sections below cover everything Ansible can't fully automate for you
 before `make run` does anything useful for a given host: variables you must
 set, and one-time manual steps (generating a vault password, registering a
 device with a remote server) that only you can perform. Several roles
-(`wireless`, `wireguard`, `vector`) share the same safety pattern: each
-defaults to its `*_enabled` variable set to `false`, so a fresh clone of
-this repository needs no extra setup just to pass `make check`/lint — you
+(`wireguard`, `vector`) share the same safety pattern: each defaults to
+its `*_enabled` variable set to `false`, so a fresh clone of this
+repository needs no extra setup just to pass `make check`/lint — you
 opt a host in explicitly, as covered in each section below.
 
 ### Configuration variables
@@ -248,27 +248,15 @@ Before `make run` does anything useful, define these variables in the
 listed files. Each is covered in full, with the exact commands to set
 it, in its own subsection below.
 
-**Network:**
+**[Network](#ethernet-network):**
 
 - `network_hostname` — required — the hostname to set on the board —
   `group_vars/<group>/network.yml` (`group_vars/rpi4/network.yml`,
   `group_vars/rpi3/network.yml`).
-
-**[WiFi network](#wifi-network):**
-
-- `wireless_enabled` — optional, defaults to `false` — enables the
-  `wireless` role for that host — `group_vars/<group>/wireless.yml`.
-- `wireless_ssid` — required when `wireless_enabled: true`
-  (vault-encrypted) — the shared WiFi network's SSID —
-  `group_vars/all/wireless.yml`.
-- `wireless_psk` — required when `wireless_enabled: true`
-  (vault-encrypted) — the shared WiFi network's password —
-  `group_vars/all/wireless.yml`.
-- `wireless_address` — required when `wireless_enabled: true` — that
-  host's static IP for `wlan0`, in CIDR notation —
-  `group_vars/<group>/wireless.yml`.
-- `wireless_gateway` — required when `wireless_enabled: true` — that
-  host's WiFi network's gateway IP — `group_vars/<group>/wireless.yml`.
+- `network_address` — required — that host's static IP for `eth0`, in
+  CIDR notation — `group_vars/<group>/network.yml`.
+- `network_gateway` — required — that host's network gateway IP —
+  `group_vars/<group>/network.yml`.
 
 **[WireGuard VPN](#wireguard-vpn):**
 
@@ -300,8 +288,8 @@ it, in its own subsection below.
 
 ### Ansible Vault password
 
-Several variables above (WiFi's SSID/password, WireGuard's peer details,
-Vector's GCP credentials) are stored
+Several variables above (WireGuard's peer details, Vector's GCP
+credentials) are stored
 [vault-encrypted](https://docs.ansible.com/ansible/latest/vault_guide/vault_encrypting_content.html#encrypting-individual-variables-with-ansible-vault)
 rather than in plaintext, since this repository is public. Each is
 decrypted with the vault password you choose the first time you run
@@ -344,77 +332,35 @@ From then on, entering this directory exports
 prompting — no `ANSIBLE_PLAYBOOK` override needed — subject to however
 your password manager caches its own unlock.
 
-### WiFi network
+### Ethernet network
 
-WiFi is configured by the `wireless` Ansible role
-(`roles/wireless/tasks/main.yml`), which installs `ifupdown` (Debian's
-network interface manager — some base images run `systemd-networkd`
-instead and lack it), `wpasupplicant`, `firmware-brcm80211`, and
-`wireless-regdb`, then templates `/etc/network/interfaces.d/wlan0` for
-you. Both boards use WiFi as their primary (often only) network
-connection, so in practice you'll want it enabled for each.
+Both boards connect over Ethernet (`eth0`) as their primary network
+connection. The `network` Ansible role (`roles/network/tasks/main.yml`)
+sets the board's hostname and templates a static-IP config for `eth0`
+via [ifupdown](https://wiki.debian.org/NetworkConfiguration#ifupdown)
+(Debian's traditional network interface manager), at
+`/etc/network/interfaces.d/eth0` — the same pattern used for `wg0` (see
+[WireGuard VPN](#wireguard-vpn) below).
 
-To avoid ever committing the SSID/password in plaintext, both are stored
-as individually vault-encrypted variables (see
-[Ansible Vault password](#ansible-vault-password) above). Both boards are
-on the same real WiFi network, so the SSID and PSK live once in a
-committed `group_vars/all/wireless.yml`, which Ansible applies to every
-host in the inventory; per-host files (`group_vars/rpi4/wireless.yml`,
-`group_vars/rpi3/wireless.yml`) hold only `wireless_enabled` plus that
-host's plaintext `wireless_address` (static IP, CIDR notation) and
-`wireless_gateway` — these aren't secret, so they don't need
-vault-encrypting. Should a board ever join a different network, override
-the SSID/PSK in that host's own `group_vars/<group>/wireless.yml`, since
-Ansible resolves group_vars files for more specific groups before
-`group_vars/all`. Encrypting the SSID too (not just the password) matters
-if your repository is public: a real network name in git history can be
-cross-referenced against wardriving databases (e.g. WiGLE) back to a real
-location.
-
-To set it up, pick a vault password, then generate the two encrypted
-blocks. The commands below assume `ANSIBLE_VAULT_PASSWORD_FILE` is
-already set (see [Ansible Vault password](#ansible-vault-password)
-above); pass `--ask-vault-pass` instead if you haven't set that up yet.
-Reading from stdin, rather than passing the values as command-line
-arguments, keeps them out of your shell history:
-
-```sh
-ansible-vault encrypt_string --stdin-name 'wireless_ssid'
-# type your network's SSID, then press Ctrl-d
-ansible-vault encrypt_string --stdin-name 'wireless_psk'
-# type your network's password, then press Ctrl-d
-```
-
-Create (or edit) `group_vars/all/wireless.yml` with the two encrypted
-blocks output above:
+Set `network_address` (that host's static IP for `eth0`, CIDR notation)
+and `network_gateway` in each host's `group_vars/<group>/network.yml`,
+alongside the existing `network_hostname`, e.g.:
 
 ```yaml
 ---
-wireless_ssid: !vault |
-          $ANSIBLE_VAULT;1.1;AES256
-          66386439653236336462626566653063336164663966303231363934653561363...
-wireless_psk: !vault |
-          $ANSIBLE_VAULT;1.1;AES256
-          32643361393835653136306164393433656333383761346130336436393730323...
+network_hostname: rpi-202508
+network_address: 192.168.1.25/24
+network_gateway: 192.168.1.1
 ```
 
-Then create (or edit) each host's `group_vars/<group>/wireless.yml` with
-`wireless_enabled: true` and its `wireless_address`/`wireless_gateway`,
-e.g.:
-
-```yaml
----
-wireless_enabled: true
-wireless_address: 192.168.1.25/24
-wireless_gateway: 192.168.1.1
-```
-
-Commit both files, then apply them as described in
-[Ansible Vault password](#ansible-vault-password) above. The interface
-comes up on next boot; to bring it up immediately without rebooting, run
-`ifup wlan0` on the Pi (the role does not do this automatically, since
-restarting the interface could drop the very SSH session applying the
-change if the Pi is currently reached over WiFi).
+These aren't secret, so no vault-encryption is needed. Commit the file,
+then apply it as described in
+[Ansible Vault password](#ansible-vault-password) above (only needed if
+other vault-encrypted variables are also pending for that host). The
+static IP takes effect on next boot; to apply it immediately without
+rebooting, run `ifup eth0` on the Pi (the role does not do this
+automatically, since bringing the interface back up could drop the very
+SSH session applying the change).
 
 ### WireGuard VPN
 
@@ -455,7 +401,7 @@ this repo's scope. Everything else is driven by variables:
    can identify or locate the remote server if leaked through a public
    repo's git history. `wireguard_peer_allowed_ips` (the tunnel subnet,
    e.g. `10.254.10.0/24`) isn't identifying on its own, so it stays
-   plaintext, same reasoning as `wireless_gateway`. Both boards share the
+   plaintext, same reasoning as `network_gateway`. Both boards share the
    same remote VPN server, so all three live once in a committed
    `group_vars/all/wireguard.yml`. Generate the encrypted blocks — the
    commands below assume `ANSIBLE_VAULT_PASSWORD_FILE` is already set

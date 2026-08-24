@@ -19,10 +19,10 @@ roles apply to both hosts except `roles/k3s`, which is gated to the
 `rpi4` group only, via `when: inventory_hostname in groups['rpi4']` on
 that role entry in `playbook.yml`'s `roles:` list — RPi3's more limited
 hardware runs no k3s node — and `roles/node_exporter`/`roles/vector`,
-gated the same way to the `rpi3` group only. Per-host values (hostname,
-WiFi static IP) live in `group_vars/rpi4/` and `group_vars/rpi3/`; WiFi
-SSID/PSK are the same real network for both boards, so they live in
-`group_vars/all/` instead. _Last updated: 2026-08-23._
+gated the same way to the `rpi3` group only. Both boards connect over
+Ethernet (`eth0`); per-host values (hostname, static `eth0` IP) live
+in `group_vars/rpi4/` and `group_vars/rpi3/`.
+_Last updated: 2026-08-24._
 
 ## Commands
 
@@ -39,12 +39,9 @@ make run            # ansible-playbook --verbose playbook.yml (applies config to
 Run `make check` before considering any change to `playbook.yml`, `roles/*/tasks/*.yml`,
 or lint configs complete — this is exactly what the `ansible.yaml` CI workflow runs.
 
-`group_vars/all/wireless.yml`, `group_vars/rpi4/wireless.yml`, and
-`group_vars/rpi3/wireless.yml` hold vault-encrypted WiFi credentials
-(see `roles/wireless` below); `group_vars/all/wireguard.yml` similarly
-holds the vault-encrypted WireGuard peer values (see `roles/wireguard`
-below), once populated. `make run` needs a vault password to decrypt
-these. With
+`group_vars/all/wireguard.yml` holds the vault-encrypted WireGuard peer
+values (see `roles/wireguard` below), once populated. `make run` needs
+a vault password to decrypt these. With
 `.envrc`/`scripts/ansible-vault-password.sh` set up (direnv + gopass —
 see the "Ansible Vault password" section of `README.md`), plain
 `make run` works out of the box.
@@ -66,46 +63,38 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   3. `roles/zram` — configure zram-backed swap via
      systemd-zram-generator, giving this low-RAM board memory headroom
      without writing swap to the microSD
-  4. `roles/network` — set hostname from the `network_hostname` var
-     (`group_vars/rpi4/network.yml`, `group_vars/rpi3/network.yml`)
-  5. `roles/wireless` — configure `wlan0` via ifupdown + `wpasupplicant`
-     (`wireless_enabled`, defaults to `false` as a safe fallback; both
-     `group_vars/rpi4/wireless.yml` and `group_vars/rpi3/wireless.yml`
-     set it `true` and supply that host's static
-     `wireless_address`/`wireless_gateway`, since WiFi is each board's
-     primary network connection; the shared `wireless_ssid`/`wireless_psk`
-     live in `group_vars/all/wireless.yml` instead). Also installs
-     `ifupdown` itself (some base images run
-     `systemd-networkd` instead and lack it — installing it only adds a
-     `wlan0` stanza, `eth0` stays under `systemd-networkd`),
-     `firmware-brcm80211`, and `wireless-regdb` — the latter two aren't
-     guaranteed present on every base image, and their absence can
-     silently prevent `wpa_supplicant` from bringing the interface up.
-  6. `roles/dns_resolver` — install/enable the DNS resolver
+  4. `roles/network` — set hostname from the `network_hostname` var and
+     bring up `eth0` with a static address (`network_address`/
+     `network_gateway`) via a templated ifupdown `interfaces.d/eth0`
+     stanza (`group_vars/rpi4/network.yml`, `group_vars/rpi3/network.yml`),
+     the same pattern used for `wg0`.
+  5. `roles/dns_resolver` — install/enable the DNS resolver
      (`dns_resolver_package`/`dns_resolver_service`, default `unbound`),
      point `/etc/resolv.conf` at it
-  7. `roles/wireguard` — install WireGuard, generate keys idempotently (uses
+  6. `roles/wireguard` — install WireGuard, generate keys idempotently (uses
      `creates:` guards), and — once `wireguard_enabled` (defaults to
-     `false` as a safe fallback, same pattern as `roles/wireless`) plus
-     the peer values are supplied — template `/etc/wireguard/wg0.conf`
-     and an ifupdown `interfaces.d/wg0` stanza and bring the tunnel up.
-     `wg0` is deliberately brought up via plain `ip`/`wg` commands in
-     ifupdown hooks, not `wg-quick`; activation restarts the
-     `networking` service (see README.md's "WireGuard VPN" section)
-  8. `roles/node_exporter` — install/configure `prometheus-node-exporter`,
+     `false` as a safe fallback) plus the peer values are supplied —
+     template `/etc/wireguard/wg0.conf` and an ifupdown
+     `interfaces.d/wg0` stanza and bring the tunnel up. `wg0` is
+     deliberately brought up via plain `ip`/`wg` commands in ifupdown
+     hooks; activation restarts the `networking` service (see
+     README.md's "WireGuard VPN" section). `ifupdown` is installed by
+     this role itself, since nothing else in the playbook needs it
+     anymore
+  7. `roles/node_exporter` — install/configure `prometheus-node-exporter`,
      exposing host metrics on `node_exporter_listen_address` (default
      `0.0.0.0:9100`) for the separately managed RPi4/Flux Prometheus to
      scrape (RPi3 only — gated via `when:` in `playbook.yml`; see
      README.md's "Monitoring" section)
-  9. `roles/vector` — install Vector and forward RPi3's journald logs to
+  8. `roles/vector` — install Vector and forward RPi3's journald logs to
      Google Cloud Logging via the `gcp_stackdriver_logs` sink
      (`vector_enabled`, defaults to `false` as a safe fallback, same
-     pattern as `roles/wireless`; RPi3 only — gated via `when:` in
+     pattern as `roles/wireguard`; RPi3 only — gated via `when:` in
      `playbook.yml`; see README.md's "Vector log export" section)
-  10. `roles/k3s` — install/upgrade k3s to the version pinned by
-      `k3s_version` in `playbook.yml`, using
-      `roles/k3s/templates/k3s-config.yaml.j2` (RPi4 only — gated via
-      `when:` in `playbook.yml`)
+  9. `roles/k3s` — install/upgrade k3s to the version pinned by
+     `k3s_version` in `playbook.yml`, using
+     `roles/k3s/templates/k3s-config.yaml.j2` (RPi4 only — gated via
+     `when:` in `playbook.yml`)
 - Order matters: later roles assume earlier ones already ran (packages
   installed, hostname set, etc.). When adding a new concern, add a new
   `roles/<name>/` directory (with `tasks/main.yml` and, as needed,
@@ -119,19 +108,13 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
 - A role that requires a value to be explicitly set per host (rather than
   falling back to a shared default) defines it as an empty string in
   `defaults/main.yml` and asserts it's non-empty as its first task
-  (`delegate_to: localhost`, see `roles/network` and `roles/wireless`) —
+  (`delegate_to: localhost`, see `roles/network`) —
   this fails fast with a clear message instead of silently applying an
   empty/wrong value.
 - Each role's `files/` holds static files pushed verbatim to the Pi via
   `ansible.builtin.copy` (currently just `resolv.conf`); `templates/`
   holds Jinja2 files rendered via `ansible.builtin.template` for values
-  that vary (journald limits, zram config, wlan0, k3s config).
-- `wireless_ssid`/`wireless_psk` (used by `roles/wireless`) live in
-  committed `group_vars/all/wireless.yml`, shared by both boards since
-  they're on the same real WiFi network, encrypted per-variable via
-  `ansible-vault encrypt_string` rather than whole-file vault encryption,
-  so `make check`/CI can parse the file with no vault password available.
-  See the "WiFi network" section of `README.md` for the exact commands.
+  that vary (journald limits, zram config, eth0's static IP, k3s config).
 - `vector_gcp_project_id`/`vector_gcp_credentials_json` (used by
   `roles/vector`) follow the same per-variable vault-encryption pattern,
   in `group_vars/rpi3/vector.yml` — the GCP project ID and service

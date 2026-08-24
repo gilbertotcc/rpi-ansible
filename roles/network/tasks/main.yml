@@ -2,20 +2,35 @@
 #
 # Setup network
 #
+# eth0 is this board's primary (only) network connection, brought up
+# with a static address via an ifupdown interfaces.d/eth0 stanza (the
+# same pattern used for wg0).
+#
 
-- name: Check network_hostname is set.
+- name: Check network_hostname, network_address and network_gateway are set.
   delegate_to: localhost
   ansible.builtin.assert:
     that:
       - network_hostname | length > 0
+      - network_address | length > 0
+      - network_gateway | length > 0
     fail_msg: >
-      network_hostname is empty. Set it via a group_vars file.
+      network_hostname, network_address and/or network_gateway are
+      empty. Set them via a group_vars file.
     quiet: true
 - name: Set hostname.
   become: true
   ansible.builtin.copy:
     content: "{{ network_hostname }}\n"
     dest: /etc/hostname
+    owner: root
+    group: root
+    mode: '0644'
+- name: Setup network by populating `/etc/network`.
+  become: true
+  ansible.builtin.template:
+    src: eth0.j2
+    dest: /etc/network/interfaces.d/eth0
     owner: root
     group: root
     mode: '0644'
