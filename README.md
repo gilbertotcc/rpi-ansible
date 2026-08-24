@@ -405,7 +405,7 @@ e.g.:
 ```yaml
 ---
 wireless_enabled: true
-wireless_address: 192.168.1.25/27
+wireless_address: 192.168.1.25/24
 wireless_gateway: 192.168.1.1
 ```
 
