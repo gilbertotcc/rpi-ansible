@@ -1,2 +1,4 @@
 ---
 network_hostname: ""
+network_address: ""
+network_gateway: ""

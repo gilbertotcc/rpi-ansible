@@ -7,7 +7,7 @@
 # come from an ansible-vault-encrypted group_vars file (see README.md)
 # and must never be stored unencrypted in this repository.
 # vector_enabled defaults to false here as a safe fallback, same pattern
-# as roles/wireless.
+# as roles/wireguard.
 #
 # The official install script only sets up Vector's APT repository, so
 # it's guarded to run once (Vector not already installed) rather than on
