@@ -67,10 +67,10 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
      bring up `eth0` with a static address (`network_address`/
      `network_gateway`) via a templated ifupdown `interfaces.d/eth0`
      stanza (`group_vars/rpi4/network.yml`, `group_vars/rpi3/network.yml`),
-     the same pattern used for `wg0`/formerly `wlan0`. Also
-     unconditionally removes any leftover
-     `/etc/network/interfaces.d/wlan0`, left over from the now-removed
-     `roles/wireless` — both boards used to connect over WiFi.
+     the same pattern used for `wg0`/formerly `wlan0` — both boards used
+     to connect over WiFi via a now-removed `roles/wireless`, and their
+     leftover `/etc/network/interfaces.d/wlan0` file has already been
+     cleaned up on both, so this role no longer removes it itself.
   5. `roles/dns_resolver` — install/enable the DNS resolver
      (`dns_resolver_package`/`dns_resolver_service`, default `unbound`),
      point `/etc/resolv.conf` at it

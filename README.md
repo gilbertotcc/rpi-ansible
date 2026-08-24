@@ -341,11 +341,10 @@ via [ifupdown](https://wiki.debian.org/NetworkConfiguration#ifupdown)
 (Debian's traditional network interface manager), at
 `/etc/network/interfaces.d/eth0` — the same pattern previously used for
 `wlan0`, and still used for `wg0` (see
-[WireGuard VPN](#wireguard-vpn) below). It also unconditionally removes
-any leftover `/etc/network/interfaces.d/wlan0` — this repo used to
-configure WiFi via a now-removed `wireless` role, and this cleanup runs
-on every host so no board keeps a stale wireless interface config
-around.
+[WireGuard VPN](#wireguard-vpn) below). This repo used to configure WiFi
+via a now-removed `wireless` role; both boards' leftover
+`/etc/network/interfaces.d/wlan0` file has already been cleaned up, so
+this role no longer removes it itself.
 
 Set `network_address` (that host's static IP for `eth0`, CIDR notation)
 and `network_gateway` in each host's `group_vars/<group>/network.yml`,
@@ -366,14 +365,6 @@ static IP takes effect on next boot; to apply it immediately without
 rebooting, run `ifup eth0` on the Pi (the role does not do this
 automatically, since bringing the interface back up could drop the very
 SSH session applying the change).
-
-> :warning: If a board is still reached over WiFi from a previous setup,
-> physically connect it to Ethernet and confirm it's reachable at its
-> `hosts.ini` IP over `eth0` before treating WiFi as decommissioned for
-> that board — this run only templates the new `eth0` config and removes
-> the leftover `wlan0` interface file, it doesn't touch any WiFi packages
-> or bounce the interface live, so it won't cut an existing WiFi-based
-> SSH session by itself.
 
 ### WireGuard VPN
 

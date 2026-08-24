@@ -11,9 +11,9 @@
 # changed configuration.
 #
 # WiFi previously ran here via roles/wireless; that role has been
-# removed, and the task below removes its leftover
-# interfaces.d/wlan0 file unconditionally so no board keeps a stale
-# wlan0 config around.
+# removed, and both boards already had their leftover
+# interfaces.d/wlan0 file cleaned up by an earlier run of this role, so
+# it no longer needs to do so itself.
 #
 
 - name: Check network_hostname, network_address and network_gateway are set.
@@ -43,8 +43,3 @@
     owner: root
     group: root
     mode: '0644'
-- name: Remove leftover wlan0 interface configuration.
-  become: true
-  ansible.builtin.file:
-    path: /etc/network/interfaces.d/wlan0
-    state: absent
