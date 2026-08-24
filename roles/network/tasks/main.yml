@@ -4,16 +4,7 @@
 #
 # eth0 is this board's primary (only) network connection, brought up
 # with a static address via an ifupdown interfaces.d/eth0 stanza (the
-# same pattern used for wg0/formerly wlan0). The config is deliberately
-# never applied live (no ifup/ifdown here): if this host is currently
-# reached over eth0 itself, bouncing it could drop the very SSH session
-# applying the change. Reboot, or run `ifup eth0` manually, to apply a
-# changed configuration.
-#
-# WiFi previously ran here via roles/wireless; that role has been
-# removed, and both boards already had their leftover
-# interfaces.d/wlan0 file cleaned up by an earlier run of this role, so
-# it no longer needs to do so itself.
+# same pattern used for wg0).
 #
 
 - name: Check network_hostname, network_address and network_gateway are set.

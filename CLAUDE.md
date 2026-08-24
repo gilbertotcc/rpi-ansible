@@ -67,10 +67,7 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
      bring up `eth0` with a static address (`network_address`/
      `network_gateway`) via a templated ifupdown `interfaces.d/eth0`
      stanza (`group_vars/rpi4/network.yml`, `group_vars/rpi3/network.yml`),
-     the same pattern used for `wg0`/formerly `wlan0` — both boards used
-     to connect over WiFi via a now-removed `roles/wireless`, and their
-     leftover `/etc/network/interfaces.d/wlan0` file has already been
-     cleaned up on both, so this role no longer removes it itself.
+     the same pattern used for `wg0`.
   5. `roles/dns_resolver` — install/enable the DNS resolver
      (`dns_resolver_package`/`dns_resolver_service`, default `unbound`),
      point `/etc/resolv.conf` at it
@@ -80,10 +77,10 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
      template `/etc/wireguard/wg0.conf` and an ifupdown
      `interfaces.d/wg0` stanza and bring the tunnel up. `wg0` is
      deliberately brought up via plain `ip`/`wg` commands in ifupdown
-     hooks, not `wg-quick`; activation restarts the `networking`
-     service (see README.md's "WireGuard VPN" section). `ifupdown`
-     is installed by this role itself, since nothing else in the
-     playbook needs it anymore
+     hooks; activation restarts the `networking` service (see
+     README.md's "WireGuard VPN" section). `ifupdown` is installed by
+     this role itself, since nothing else in the playbook needs it
+     anymore
   7. `roles/node_exporter` — install/configure `prometheus-node-exporter`,
      exposing host metrics on `node_exporter_listen_address` (default
      `0.0.0.0:9100`) for the separately managed RPi4/Flux Prometheus to

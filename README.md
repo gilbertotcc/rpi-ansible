@@ -339,12 +339,8 @@ connection. The `network` Ansible role (`roles/network/tasks/main.yml`)
 sets the board's hostname and templates a static-IP config for `eth0`
 via [ifupdown](https://wiki.debian.org/NetworkConfiguration#ifupdown)
 (Debian's traditional network interface manager), at
-`/etc/network/interfaces.d/eth0` — the same pattern previously used for
-`wlan0`, and still used for `wg0` (see
-[WireGuard VPN](#wireguard-vpn) below). This repo used to configure WiFi
-via a now-removed `wireless` role; both boards' leftover
-`/etc/network/interfaces.d/wlan0` file has already been cleaned up, so
-this role no longer removes it itself.
+`/etc/network/interfaces.d/eth0` — the same pattern used for `wg0` (see
+[WireGuard VPN](#wireguard-vpn) below).
 
 Set `network_address` (that host's static IP for `eth0`, CIDR notation)
 and `network_gateway` in each host's `group_vars/<group>/network.yml`,
