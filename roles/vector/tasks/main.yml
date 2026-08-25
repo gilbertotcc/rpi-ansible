@@ -56,7 +56,7 @@
     state: directory
     owner: root
     group: vector
-    mode: "0750"
+    mode: '0750'
   when: vector_enabled
 - name: Populate GCP credentials file.
   become: true
@@ -65,7 +65,7 @@
     dest: "{{ vector_gcp_credentials_path }}"
     owner: root
     group: vector
-    mode: "0640"
+    mode: '0640'
   no_log: true
   notify: Restart Vector.
   when: vector_enabled
@@ -76,7 +76,7 @@
     dest: /etc/vector/vector.yaml
     owner: root
     group: root
-    mode: "0644"
+    mode: '0644'
   notify: Restart Vector.
   when: vector_enabled
 - name: Enable and start Vector.

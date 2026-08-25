@@ -246,22 +246,26 @@ opt a host in explicitly, as covered in each section below.
 
 Before `make run` does anything useful, define these variables in the
 listed files. Each is covered in full, with the exact commands to set
-it, in its own subsection below.
+it, in its own subsection below. `hosts.ini` lists `rpi3` and `rpi4` as
+plain host aliases (no inventory groups); per-host variables live in
+`host_vars/<host>/`, while variables shared by both boards (the
+WireGuard peer details below) live in `group_vars/all/`, Ansible's
+implicit group containing every host.
 
 **[Network](#ethernet-network):**
 
 - `network_hostname` — required — the hostname to set on the board —
-  `group_vars/<group>/network.yml` (`group_vars/rpi4/network.yml`,
-  `group_vars/rpi3/network.yml`).
+  `host_vars/<host>/network.yml` (`host_vars/rpi4/network.yml`,
+  `host_vars/rpi3/network.yml`).
 - `network_address` — required — that host's static IP for `eth0`, in
-  CIDR notation — `group_vars/<group>/network.yml`.
+  CIDR notation — `host_vars/<host>/network.yml`.
 - `network_gateway` — required — that host's network gateway IP —
-  `group_vars/<group>/network.yml`.
+  `host_vars/<host>/network.yml`.
 
 **[WireGuard VPN](#wireguard-vpn):**
 
 - `wireguard_enabled` — optional, defaults to `false` — enables the
-  `wireguard` role for that host — `group_vars/<group>/wireguard.yml`.
+  `wireguard` role for that host — `host_vars/<host>/wireguard.yml`.
 - `wireguard_peer_public_key` — required when `wireguard_enabled: true`
   (vault-encrypted) — the remote VPN peer's public key —
   `group_vars/all/wireguard.yml`.
@@ -273,18 +277,18 @@ it, in its own subsection below.
   `group_vars/all/wireguard.yml`.
 - `wireguard_address` — required when `wireguard_enabled: true` — that
   host's tunnel IP for `wg0`, in CIDR notation —
-  `group_vars/<group>/wireguard.yml`.
+  `host_vars/<host>/wireguard.yml`.
 
 **[Vector log export](#vector-log-export)** (RPi3 only):
 
 - `vector_enabled` — optional, defaults to `false` — enables the
-  `vector` role — `group_vars/rpi3/vector.yml`.
+  `vector` role — `host_vars/rpi3/vector.yml`.
 - `vector_gcp_project_id` — required when `vector_enabled: true`
   (vault-encrypted) — the GCP project ID logs are written to —
-  `group_vars/rpi3/vector.yml`.
+  `host_vars/rpi3/vector.yml`.
 - `vector_gcp_credentials_json` — required when `vector_enabled: true`
   (vault-encrypted) — the downloaded service account key JSON —
-  `group_vars/rpi3/vector.yml`.
+  `host_vars/rpi3/vector.yml`.
 
 ### Ansible Vault password
 
@@ -343,7 +347,7 @@ via [ifupdown](https://wiki.debian.org/NetworkConfiguration#ifupdown)
 [WireGuard VPN](#wireguard-vpn) below).
 
 Set `network_address` (that host's static IP for `eth0`, CIDR notation)
-and `network_gateway` in each host's `group_vars/<group>/network.yml`,
+and `network_gateway` in each host's `host_vars/<host>/network.yml`,
 alongside the existing `network_hostname`, e.g.:
 
 ```yaml
@@ -431,7 +435,7 @@ this repo's scope. Everything else is driven by variables:
    ```
 
 3. This node's tunnel address isn't secret, so create (or edit) each
-   host's `group_vars/<group>/wireguard.yml` with
+   host's `host_vars/<host>/wireguard.yml` with
    `wireguard_enabled: true` and its plaintext `wireguard_address`, e.g.:
 
    ```yaml
@@ -470,7 +474,7 @@ service account key to `/etc/rpi-observability/`.
 The GCP project ID and the service account key are both stored as
 individually vault-encrypted variables (see
 [Ansible Vault password](#ansible-vault-password) above) in
-`group_vars/rpi3/vector.yml`, since this repository is public and
+`host_vars/rpi3/vector.yml`, since this repository is public and
 neither should be committed in plaintext.
 
 To set it up, first create a dedicated Google Cloud service account
@@ -511,7 +515,7 @@ ansible-vault encrypt_string --stdin-name 'vector_gcp_project_id'
 ansible-vault encrypt_string --stdin-name 'vector_gcp_credentials_json' < path/to/key.json
 ```
 
-Edit `group_vars/rpi3/vector.yml` with `vector_enabled: true` and the
+Edit `host_vars/rpi3/vector.yml` with `vector_enabled: true` and the
 two encrypted blocks output above:
 
 ```yaml
