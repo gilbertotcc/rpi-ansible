@@ -12,7 +12,6 @@
 
 - name: Configure RPi3
   hosts: rpi3
-  become: true
 
   roles:
     - role: node_exporter
@@ -20,7 +19,6 @@
 
 - name: Configure RPi4
   hosts: rpi4
-  become: true
 
   vars:
     k3s_version: v1.36.3+k3s1
