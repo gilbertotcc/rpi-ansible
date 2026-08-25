@@ -13,16 +13,16 @@ Node Exporter, exposing host metrics for the RPi4/Flux-managed
 Prometheus to scrape, and Vector, forwarding its journald logs to
 Google Cloud Logging. Forked from
 [iamleot/rpi-ansible](https://github.com/iamleot/rpi-ansible).
-`hosts.ini` defines two groups — `rpi4` and `rpi3` — both connected to
-as `root` (see `ansible.cfg`). `playbook.yml` targets `hosts: all`; all
-roles apply to both hosts except `roles/k3s`, which is gated to the
-`rpi4` group only, via `when: inventory_hostname in groups['rpi4']` on
-that role entry in `playbook.yml`'s `roles:` list — RPi3's more limited
-hardware runs no k3s node — and `roles/node_exporter`/`roles/vector`,
-gated the same way to the `rpi3` group only. Both boards connect over
+`hosts.ini` lists the two hosts, `rpi3` and `rpi4`, as aliases with an
+explicit `ansible_host=<IP>` — there are no inventory groups; both are
+connected to as `root` (see `ansible.cfg`). `playbook.yml` defines
+three plays: the first targets `hosts: all` with the roles common to
+both boards; a second targets `hosts: rpi3` for `roles/node_exporter`/
+`roles/vector` — RPi3's more limited hardware runs no k3s node — and a
+third targets `hosts: rpi4` for `roles/k3s`. Both boards connect over
 Ethernet (`eth0`); per-host values (hostname, static `eth0` IP) live
-in `group_vars/rpi4/` and `group_vars/rpi3/`.
-_Last updated: 2026-08-24._
+in `host_vars/rpi4/` and `host_vars/rpi3/`.
+_Last updated: 2026-08-25._
 
 ## Commands
 
@@ -52,59 +52,63 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
 
 ## Architecture
 
-- `playbook.yml` is the single entrypoint. It targets `hosts: all` and applies
-  roles from `roles/` **in a fixed order** via a `roles:` list, each
-  responsible for one concern:
-  1. `roles/packages` — apt upgrade everything (gated by `packages_update`)
-     and install the package list (`packages_needed_packages`)
-  2. `roles/journald` — cap journald's on-disk footprint via
-     `roles/journald/templates/journald.conf.j2`, so logs don't grow
-     unbounded on the microSD
-  3. `roles/zram` — configure zram-backed swap via
-     systemd-zram-generator, giving this low-RAM board memory headroom
-     without writing swap to the microSD
-  4. `roles/network` — set hostname from the `network_hostname` var and
-     bring up `eth0` with a static address (`network_address`/
-     `network_gateway`) via a templated ifupdown `interfaces.d/eth0`
-     stanza (`group_vars/rpi4/network.yml`, `group_vars/rpi3/network.yml`),
-     the same pattern used for `wg0`.
-  5. `roles/dns_resolver` — install/enable the DNS resolver
-     (`dns_resolver_package`/`dns_resolver_service`, default `unbound`),
-     point `/etc/resolv.conf` at it
-  6. `roles/wireguard` — install WireGuard, generate keys idempotently (uses
-     `creates:` guards), and — once `wireguard_enabled` (defaults to
-     `false` as a safe fallback) plus the peer values are supplied —
-     template `/etc/wireguard/wg0.conf` and an ifupdown
-     `interfaces.d/wg0` stanza and bring the tunnel up. `wg0` is
-     deliberately brought up via plain `ip`/`wg` commands in ifupdown
-     hooks; activation restarts the `networking` service (see
-     README.md's "WireGuard VPN" section). `ifupdown` is installed by
-     this role itself, since nothing else in the playbook needs it
-     anymore
-  7. `roles/node_exporter` — install/configure `prometheus-node-exporter`,
-     exposing host metrics on `node_exporter_listen_address` (default
-     `0.0.0.0:9100`) for the separately managed RPi4/Flux Prometheus to
-     scrape (RPi3 only — gated via `when:` in `playbook.yml`; see
-     README.md's "Monitoring" section)
-  8. `roles/vector` — install Vector and forward RPi3's journald logs to
-     Google Cloud Logging via the `gcp_stackdriver_logs` sink
-     (`vector_enabled`, defaults to `false` as a safe fallback, same
-     pattern as `roles/wireguard`; RPi3 only — gated via `when:` in
-     `playbook.yml`; see README.md's "Vector log export" section)
-  9. `roles/k3s` — install/upgrade k3s to the version pinned by
-     `k3s_version` in `playbook.yml`, using
-     `roles/k3s/templates/k3s-config.yaml.j2` (RPi4 only — gated via
-     `when:` in `playbook.yml`)
+- `playbook.yml` is the single entrypoint, made up of three plays, each
+  applying roles from `roles/` **in a fixed order** via that play's
+  `roles:` list:
+  - `Configure RPi boards` (`hosts: all`) — the roles common to both
+    boards:
+    1. `roles/packages` — apt upgrade everything (gated by `packages_update`)
+       and install the package list (`packages_needed_packages`)
+    2. `roles/journald` — cap journald's on-disk footprint via
+       `roles/journald/templates/journald.conf.j2`, so logs don't grow
+       unbounded on the microSD
+    3. `roles/zram` — configure zram-backed swap via
+       systemd-zram-generator, giving this low-RAM board memory headroom
+       without writing swap to the microSD
+    4. `roles/network` — set hostname from the `network_hostname` var and
+       bring up `eth0` with a static address (`network_address`/
+       `network_gateway`) via a templated ifupdown `interfaces.d/eth0`
+       stanza (`host_vars/rpi4/network.yml`, `host_vars/rpi3/network.yml`),
+       the same pattern used for `wg0`.
+    5. `roles/dns_resolver` — install/enable the DNS resolver
+       (`dns_resolver_package`/`dns_resolver_service`, default `unbound`),
+       point `/etc/resolv.conf` at it
+    6. `roles/wireguard` — install WireGuard, generate keys idempotently (uses
+       `creates:` guards), and — once `wireguard_enabled` (defaults to
+       `false` as a safe fallback) plus the peer values are supplied —
+       template `/etc/wireguard/wg0.conf` and an ifupdown
+       `interfaces.d/wg0` stanza and bring the tunnel up. `wg0` is
+       deliberately brought up via plain `ip`/`wg` commands in ifupdown
+       hooks; activation restarts the `networking` service (see
+       README.md's "WireGuard VPN" section). `ifupdown` is installed by
+       this role itself, since nothing else in the playbook needs it
+       anymore
+  - `Configure RPi3` (`hosts: rpi3`):
+    7. `roles/node_exporter` — install/configure `prometheus-node-exporter`,
+       exposing host metrics on `node_exporter_listen_address` (default
+       `0.0.0.0:9100`) for the separately managed RPi4/Flux Prometheus to
+       scrape (see README.md's "Monitoring" section)
+    8. `roles/vector` — install Vector and forward RPi3's journald logs to
+       Google Cloud Logging via the `gcp_stackdriver_logs` sink
+       (`vector_enabled`, defaults to `false` as a safe fallback, same
+       pattern as `roles/wireguard`; see README.md's "Vector log export"
+       section)
+  - `Configure RPi4` (`hosts: rpi4`, `k3s_version` set in this play's
+    `vars:`):
+    9. `roles/k3s` — install/upgrade k3s to the version pinned by
+       `k3s_version`, using `roles/k3s/templates/k3s-config.yaml.j2`
 - Order matters: later roles assume earlier ones already ran (packages
-  installed, hostname set, etc.). When adding a new concern, add a new
-  `roles/<name>/` directory (with `tasks/main.yml` and, as needed,
-  `defaults/main.yml`, `files/`, `meta/main.yml`) and reference it from
-  `playbook.yml`'s `roles:` list in the appropriate position, rather than
-  growing an existing role's tasks with unrelated work.
-- A role that needs to behave differently per host (not just per group)
-  gates itself with `when: inventory_hostname in groups['<group>']` on
-  its `roles:` list entry (see `k3s` above) rather than an in-role
-  conditional, keeping the host/group logic visible in one place.
+  installed, hostname set, etc.). When adding a new concern shared by
+  both boards, add a new `roles/<name>/` directory (with `tasks/main.yml`
+  and, as needed, `defaults/main.yml`, `files/`, `meta/main.yml`) and
+  reference it from the `Configure RPi boards` play's `roles:` list in
+  the appropriate position, rather than growing an existing role's tasks
+  with unrelated work.
+- A role that only applies to one board (not both) gets its own play
+  scoped to that host (`hosts: rpi3` or `hosts: rpi4`, see `node_exporter`/
+  `vector`/`k3s` above) rather than an in-role or per-role-entry
+  conditional, keeping the host-specific roles and any host-specific
+  `vars:` (e.g. `k3s_version`) visible together in one place.
 - A role that requires a value to be explicitly set per host (rather than
   falling back to a shared default) defines it as an empty string in
   `defaults/main.yml` and asserts it's non-empty as its first task
@@ -117,16 +121,18 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   that vary (journald limits, zram config, eth0's static IP, k3s config).
 - `vector_gcp_project_id`/`vector_gcp_credentials_json` (used by
   `roles/vector`) follow the same per-variable vault-encryption pattern,
-  in `group_vars/rpi3/vector.yml` — the GCP project ID and service
+  in `host_vars/rpi3/vector.yml` — the GCP project ID and service
   account key must never be committed to this public repository either.
   See the "Vector log export" section of `README.md` for the exact
   commands.
 - `wireguard_peer_public_key`/`wireguard_peer_allowed_ips`/
   `wireguard_peer_endpoint` (used by `roles/wireguard`) follow the same
   per-variable vault-encryption pattern, shared by both boards (same
-  remote VPN server) in `group_vars/all/wireguard.yml`; each host's
-  plaintext `wireguard_enabled`/`wireguard_address` live in
-  `group_vars/rpi4/wireguard.yml`/`group_vars/rpi3/wireguard.yml`. See
+  remote VPN server) in `group_vars/all/wireguard.yml` — `all` is
+  Ansible's implicit group containing every host, unaffected by
+  `hosts.ini` no longer defining explicit groups; each host's plaintext
+  `wireguard_enabled`/`wireguard_address` live in
+  `host_vars/rpi4/wireguard.yml`/`host_vars/rpi3/wireguard.yml`. See
   the "WireGuard VPN" section of `README.md` for the exact commands.
 - `.envrc` and `scripts/ansible-vault-password.sh` give non-interactive vault
   password delivery (`ANSIBLE_VAULT_PASSWORD_FILE`) via direnv + gopass.
