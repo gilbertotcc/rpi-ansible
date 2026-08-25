@@ -7,12 +7,12 @@
 # ansible-vault-encrypted group_vars file (see README.md) and must
 # never be stored unencrypted in this repository. wireguard_enabled
 # defaults to false here as a safe fallback, same pattern as
-# roles/wireless and roles/vector.
+# roles/vector.
 #
 # The wg0 interface is brought up via ifupdown (interfaces.d/wg0), not
 # wg-quick: pre-up/post-down hooks create/destroy the WireGuard netlink
 # device and load its config with plain ip(8)/wg(8) commands, and
-# ifupdown itself assigns the address, same as for wlan0.
+# ifupdown itself assigns the address, same as for eth0.
 #
 
 - name: Check WireGuard address/peer values are set when enabled.
