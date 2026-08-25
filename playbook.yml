@@ -2,11 +2,6 @@
 - name: Configure RPi boards
   hosts: all
 
-  vars:
-    # List of channels with latest versions is available at
-    # <https://update.k3s.io/v1-release/channels>.
-    k3s_version: v1.36.3+k3s1
-
   roles:
     - role: packages
     - role: journald
@@ -14,9 +9,21 @@
     - role: network
     - role: dns_resolver
     - role: wireguard
+
+- name: Configure RPi3
+  hosts: rpi3
+  become: true
+
+  roles:
     - role: node_exporter
-      when: inventory_hostname in groups['rpi3']
     - role: vector
-      when: inventory_hostname in groups['rpi3']
+
+- name: Configure RPi4
+  hosts: rpi4
+  become: true
+
+  vars:
+    k3s_version: v1.36.3+k3s1
+
+  roles:
     - role: k3s
-      when: inventory_hostname in groups['rpi4']
