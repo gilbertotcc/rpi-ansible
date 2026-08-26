@@ -1,0 +1,137 @@
+---
+#
+# Configure (or tear down) a Healthchecks.io host heartbeat.
+#
+# Sends a periodic outbound HTTPS ping to a per-host Healthchecks.io
+# check via a systemd timer/oneshot service on the host OS. A missed
+# ping is Healthchecks.io's external dead-man-switch alert for host
+# power loss, boot failure, DNS failure, or WAN outage.
+#
+# healthchecks_ping_url is expected to come from an
+# ansible-vault-encrypted host_vars file (see README.md) and must
+# never be stored unencrypted in this repository. healthchecks_enabled
+# defaults to false here as a safe fallback, same pattern as
+# roles/wireguard and roles/vector.
+#
+# /etc/rpi-observability may already be managed by roles/vector on
+# rpi3 (owned there as root:vector); the directory task below
+# deliberately omits group: so it never fights that ownership.
+#
+
+- name: Check healthchecks_ping_url is set and HTTPS when enabled.
+  delegate_to: localhost
+  no_log: true
+  ansible.builtin.assert:
+    that:
+      - healthchecks_ping_url | length > 0
+      - healthchecks_ping_url is match('^https://')
+    fail_msg: >
+      healthchecks_enabled is true but healthchecks_ping_url is empty
+      or not an https:// URL. Populate it via an
+      ansible-vault-encrypted host_vars file.
+    quiet: true
+  when: healthchecks_enabled
+- name: Check curl is available.
+  ansible.builtin.stat:
+    path: /usr/bin/curl
+  register: healthchecks_curl_stat
+  when: healthchecks_enabled
+- name: Fail if curl is missing.
+  ansible.builtin.fail:
+    msg: >
+      /usr/bin/curl is required by roles/healthchecks but is missing;
+      it should already be installed by roles/packages.
+  when: healthchecks_enabled and not healthchecks_curl_stat.stat.exists
+- name: Create Healthchecks credentials directory.
+  become: true
+  ansible.builtin.file:
+    path: "{{ healthchecks_credentials_directory }}"
+    state: directory
+    owner: root
+    mode: '0750'
+  when: healthchecks_enabled
+- name: Populate Healthchecks credentials file.
+  become: true
+  ansible.builtin.template:
+    src: healthchecks-heartbeat.env.j2
+    dest: "{{ healthchecks_credentials_file }}"
+    owner: root
+    group: root
+    mode: '0600'
+  no_log: true
+  when: healthchecks_enabled
+- name: Populate Healthchecks heartbeat script.
+  become: true
+  ansible.builtin.template:
+    src: healthchecks-heartbeat.sh.j2
+    dest: "{{ healthchecks_script_path }}"
+    owner: root
+    group: root
+    mode: '0750'
+  when: healthchecks_enabled
+- name: Populate Healthchecks heartbeat service unit.
+  become: true
+  ansible.builtin.template:
+    src: healthchecks-heartbeat.service.j2
+    dest: "/etc/systemd/system/{{ healthchecks_service_name }}"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload systemd daemon.
+  when: healthchecks_enabled
+- name: Populate Healthchecks heartbeat timer unit.
+  become: true
+  ansible.builtin.template:
+    src: healthchecks-heartbeat.timer.j2
+    dest: "/etc/systemd/system/{{ healthchecks_timer_name }}"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload systemd daemon.
+  when: healthchecks_enabled
+- name: Enable and start Healthchecks heartbeat timer.
+  become: true
+  ansible.builtin.systemd:
+    name: "{{ healthchecks_timer_name }}"
+    daemon_reload: true
+    enabled: true
+    state: started
+  when: healthchecks_enabled
+
+- name: Check Healthchecks heartbeat timer unit status.
+  ansible.builtin.stat:
+    path: "/etc/systemd/system/{{ healthchecks_timer_name }}"
+  register: healthchecks_timer_unit_stat
+  when: not healthchecks_enabled
+- name: Check Healthchecks heartbeat service unit status.
+  ansible.builtin.stat:
+    path: "/etc/systemd/system/{{ healthchecks_service_name }}"
+  register: healthchecks_service_unit_stat
+  when: not healthchecks_enabled
+- name: Disable and stop Healthchecks heartbeat timer if present.
+  become: true
+  ansible.builtin.systemd:
+    name: "{{ healthchecks_timer_name }}"
+    enabled: false
+    state: stopped
+  when: >
+    not healthchecks_enabled and healthchecks_timer_unit_stat.stat.exists
+- name: Stop Healthchecks heartbeat service if present.
+  become: true
+  ansible.builtin.systemd:
+    name: "{{ healthchecks_service_name }}"
+    state: stopped
+  when: >
+    not healthchecks_enabled and healthchecks_service_unit_stat.stat.exists
+- name: Remove Healthchecks heartbeat managed files.
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ healthchecks_credentials_file }}"
+    - "{{ healthchecks_script_path }}"
+    - "/etc/systemd/system/{{ healthchecks_service_name }}"
+    - "/etc/systemd/system/{{ healthchecks_timer_name }}"
+  notify: Reload systemd daemon.
+  when: not healthchecks_enabled

@@ -1,0 +1,15 @@
+---
+healthchecks_enabled: false
+
+healthchecks_ping_url: ""
+
+healthchecks_credentials_directory: /etc/rpi-observability
+healthchecks_credentials_file: >-
+  {{ healthchecks_credentials_directory }}/healthchecks-heartbeat.env
+healthchecks_script_path: /usr/local/sbin/healthchecks-heartbeat
+healthchecks_service_name: healthchecks-heartbeat.service
+healthchecks_timer_name: healthchecks-heartbeat.timer
+
+healthchecks_on_boot_sec: 3min
+healthchecks_interval: 5min
+healthchecks_randomized_delay_sec: 30s

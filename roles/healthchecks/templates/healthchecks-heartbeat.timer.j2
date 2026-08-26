@@ -1,0 +1,12 @@
+[Unit]
+Description=Send Healthchecks.io host heartbeat periodically
+
+[Timer]
+OnBootSec={{ healthchecks_on_boot_sec }}
+OnUnitActiveSec={{ healthchecks_interval }}
+RandomizedDelaySec={{ healthchecks_randomized_delay_sec }}
+Persistent=true
+Unit={{ healthchecks_service_name }}
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,9 @@
+---
+#
+# Handlers for healthchecks.
+#
+
+- name: Reload systemd daemon.
+  become: true
+  ansible.builtin.systemd:
+    daemon_reload: true

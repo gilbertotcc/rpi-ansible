@@ -1,0 +1,8 @@
+[Unit]
+Description=Healthchecks.io external host heartbeat
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={{ healthchecks_script_path }}

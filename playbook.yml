@@ -9,6 +9,7 @@
     - role: network
     - role: dns_resolver
     - role: wireguard
+    - role: healthchecks
 
 - name: Configure RPi3
   hosts: rpi3

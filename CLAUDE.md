@@ -22,7 +22,7 @@ both boards; a second targets `hosts: rpi3` for `roles/node_exporter`/
 third targets `hosts: rpi4` for `roles/k3s`. Both boards connect over
 Ethernet (`eth0`); per-host values (hostname, static `eth0` IP) live
 in `host_vars/rpi4/` and `host_vars/rpi3/`.
-_Last updated: 2026-08-25._
+_Last updated: 2026-08-26._
 
 ## Commands
 
@@ -83,20 +83,29 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
        README.md's "WireGuard VPN" section). `ifupdown` is installed by
        this role itself, since nothing else in the playbook needs it
        anymore
+    7. `roles/healthchecks` — send an outbound HTTPS success ping to a
+       per-host [Healthchecks.io](https://healthchecks.io/) check every
+       five minutes via a systemd timer/oneshot service, a dead-man
+       switch for host liveness (`healthchecks_enabled`, defaults to
+       `false` as a safe fallback, same pattern as `roles/wireguard`;
+       see README.md's "Healthchecks.io heartbeat" section). Disabling
+       it tears down the timer, service, and its managed files, but
+       never removes `/etc/rpi-observability` itself, since `roles/vector`
+       also uses that directory on RPi3
   - `Configure RPi3` (`hosts: rpi3`):
-    7. `roles/node_exporter` — install/configure `prometheus-node-exporter`,
+    8. `roles/node_exporter` — install/configure `prometheus-node-exporter`,
        exposing host metrics on `node_exporter_listen_address` (default
        `0.0.0.0:9100`) for the separately managed RPi4/Flux Prometheus to
        scrape (see README.md's "Monitoring" section)
-    8. `roles/vector` — install Vector and forward RPi3's journald logs to
+    9. `roles/vector` — install Vector and forward RPi3's journald logs to
        Google Cloud Logging via the `gcp_stackdriver_logs` sink
        (`vector_enabled`, defaults to `false` as a safe fallback, same
        pattern as `roles/wireguard`; see README.md's "Vector log export"
        section)
   - `Configure RPi4` (`hosts: rpi4`, `k3s_version` set in this play's
     `vars:`):
-    9. `roles/k3s` — install/upgrade k3s to the version pinned by
-       `k3s_version`, using `roles/k3s/templates/k3s-config.yaml.j2`
+    10. `roles/k3s` — install/upgrade k3s to the version pinned by
+        `k3s_version`, using `roles/k3s/templates/k3s-config.yaml.j2`
 - Order matters: later roles assume earlier ones already ran (packages
   installed, hostname set, etc.). When adding a new concern shared by
   both boards, add a new `roles/<name>/` directory (with `tasks/main.yml`
@@ -134,6 +143,12 @@ There is no test suite; correctness is validated via syntax-check + ansible-lint
   `wireguard_enabled`/`wireguard_address` live in
   `host_vars/rpi4/wireguard.yml`/`host_vars/rpi3/wireguard.yml`. See
   the "WireGuard VPN" section of `README.md` for the exact commands.
+- `healthchecks_ping_url` (used by `roles/healthchecks`) follows the same
+  per-variable vault-encryption pattern, per-host in
+  `host_vars/rpi4/healthchecks.yml`/`host_vars/rpi3/healthchecks.yml` —
+  it's a bearer secret and must never be committed to this public
+  repository either. See the "Healthchecks.io heartbeat" section of
+  `README.md` for the exact commands.
 - `.envrc` and `scripts/ansible-vault-password.sh` give non-interactive vault
   password delivery (`ANSIBLE_VAULT_PASSWORD_FILE`) via direnv + gopass.
 - Values a role's tasks may need to vary (package lists, the DNS resolver
