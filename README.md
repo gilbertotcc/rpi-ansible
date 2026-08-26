@@ -26,6 +26,7 @@ exposing host metrics for the RPi4-managed Prometheus to scrape, and
   - [Ethernet network](#ethernet-network)
   - [WireGuard VPN](#wireguard-vpn)
   - [Vector log export](#vector-log-export)
+  - [Healthchecks.io heartbeat](#healthchecksio-heartbeat)
 - [Maintenance](#maintenance)
   - [Upgrading Debian](#upgrading-debian)
 - [Monitoring](#monitoring)
@@ -237,8 +238,9 @@ The sections below cover everything Ansible can't fully automate for you
 before `make run` does anything useful for a given host: variables you must
 set, and one-time manual steps (generating a vault password, registering a
 device with a remote server) that only you can perform. Several roles
-(`wireguard`, `vector`) share the same safety pattern: each defaults to
-its `*_enabled` variable set to `false`, so a fresh clone of this
+(`wireguard`, `vector`, `healthchecks`) share the same safety pattern:
+each defaults to its `*_enabled` variable set to `false`, so a fresh
+clone of this
 repository needs no extra setup just to pass `make check`/lint — you
 opt a host in explicitly, as covered in each section below.
 
@@ -290,10 +292,19 @@ implicit group containing every host.
   (vault-encrypted) — the downloaded service account key JSON —
   `host_vars/rpi3/vector.yml`.
 
+**[Healthchecks.io heartbeat](#healthchecksio-heartbeat):**
+
+- `healthchecks_enabled` — optional, defaults to `false` — enables the
+  `healthchecks` role for that host —
+  `host_vars/<host>/healthchecks.yml`.
+- `healthchecks_ping_url` — required when `healthchecks_enabled: true`
+  (vault-encrypted) — that host's full Healthchecks.io success-ping
+  URL — `host_vars/<host>/healthchecks.yml`.
+
 ### Ansible Vault password
 
 Several variables above (WireGuard's peer details, Vector's GCP
-credentials) are stored
+credentials, the Healthchecks.io ping URL) are stored
 [vault-encrypted](https://docs.ansible.com/ansible/latest/vault_guide/vault_encrypting_content.html#encrypting-individual-variables-with-ansible-vault)
 rather than in plaintext, since this repository is public. Each is
 decrypted with the vault password you choose the first time you run
@@ -541,6 +552,64 @@ logger -t rpi3-vector-poc "Cloud Logging test $(date --iso-8601=seconds)"
 
 Then check the Google Cloud Logs Explorer for the tagged test event.
 
+### Healthchecks.io heartbeat
+
+Both boards can run a
+[Healthchecks.io](https://healthchecks.io/) heartbeat via the
+`healthchecks` Ansible role (`roles/healthchecks/tasks/main.yml`): a
+systemd timer sends an outbound HTTPS success ping every five minutes,
+and Healthchecks.io alerts you if a ping doesn't arrive. Because it's
+outbound-only, it works from behind NAT with no port forwarding, and
+tolerates the home network's ISP/router setup as-is.
+
+A missed heartbeat means the ping didn't arrive — it doesn't say why.
+Causes include host power loss, boot failure, local scheduler failure,
+DNS failure, a home-network/WAN outage, or blocked outbound HTTPS; it
+measures periodic outbound reporting, not exact OS uptime. Diagnosing
+the actual cause still goes through
+[Monitoring](#monitoring) (Node Exporter/Prometheus) once you're
+alerted. This is a host-level liveness check only — it doesn't cover
+k3s workload health.
+
+To set it up, first create one check per board in the Healthchecks.io
+UI:
+
+1. Create a check (e.g. `rpi3-host`, `rpi4-host`).
+2. Set its **Period** to 5 minutes and **Grace Time** to 10 minutes.
+3. Enable failure and recovery notifications.
+4. Copy the generated ping URL — this is a bearer secret: anyone with
+   it can trigger pings for that check, so never paste it into a
+   plaintext file, commit, PR description, or your shell history.
+
+Then encrypt it into that host's `host_vars/<host>/healthchecks.yml`,
+the same way as [Vector log export](#vector-log-export) above:
+
+```sh
+ansible-vault encrypt_string --stdin-name 'healthchecks_ping_url'
+# paste the full ping URL, then press Ctrl-d
+```
+
+```yaml
+---
+healthchecks_enabled: true
+healthchecks_ping_url: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          66386439653236336462626566653063336164663966303231363934653561363...
+```
+
+Commit the file, then apply it as described in
+[Ansible Vault password](#ansible-vault-password) above. Once applied,
+you can verify the timer without waiting for its schedule — starting
+the service manually is also how you confirm the check transitions
+from New/Pending to healthy in the Healthchecks.io UI:
+
+```sh
+systemctl list-timers healthchecks-heartbeat.timer
+systemctl status healthchecks-heartbeat.timer --no-pager
+systemctl start healthchecks-heartbeat.service
+journalctl -u healthchecks-heartbeat.service -n 30 --no-pager
+```
+
 ## Maintenance
 
 Unlike the sections above, this covers ongoing upkeep for a board that's
@@ -656,7 +725,9 @@ curl -fsS http://<rpi3-address>:9100/metrics | head
 
 RPi3's logs (as opposed to metrics) are handled separately, via the
 `vector` role forwarding journald to Google Cloud Logging — see
-[Vector log export](#vector-log-export) above.
+[Vector log export](#vector-log-export) above. External host liveness,
+as opposed to metrics or logs, is covered by the
+[Healthchecks.io heartbeat](#healthchecksio-heartbeat) above.
 
 ## Acknowledgements
 
@@ -672,6 +743,7 @@ keep this project up-to-date and well-maintained.
 - [k3s documentation](https://docs.k3s.io/)
 - [Prometheus Node Exporter](https://github.com/prometheus/node_exporter)
 - [Vector documentation](https://vector.dev/docs/)
+- [Healthchecks.io documentation](https://healthchecks.io/docs/)
 - [Serial communication over UART Raspberry Pi 4](https://forums.raspberrypi.com/viewtopic.php?t=307094)
 - [WireGuard — Debian Wiki](https://wiki.debian.org/WireGuard)
 - [rpi-flux](https://github.com/gilbertotcc/rpi-flux)
