@@ -28,6 +28,7 @@ exposing host metrics for the RPi4-managed Prometheus to scrape, and
   - [Vector log export](#vector-log-export)
   - [Healthchecks.io heartbeat](#healthchecksio-heartbeat)
 - [Maintenance](#maintenance)
+  - [Running Ansible over the VPN](#running-ansible-over-the-vpn)
   - [Upgrading Debian](#upgrading-debian)
 - [Monitoring](#monitoring)
 - [Acknowledgements](#acknowledgements)
@@ -471,6 +472,9 @@ this repo's scope. Everything else is driven by variables:
    `latest handshake`, and non-zero sent and received transfer
    counters.
 
+Once the tunnel is up, you can also run Ansible through it from outside
+your LAN — see [Running Ansible over the VPN](#running-ansible-over-the-vpn).
+
 ### Vector log export
 
 RPi3 runs [Vector](https://vector.dev/) via the `vector` Ansible role
@@ -615,6 +619,27 @@ journalctl -u healthchecks-heartbeat.service -n 30 --no-pager
 Unlike the sections above, this covers ongoing upkeep for a board that's
 already set up and running — not part of the first-time setup.
 
+### Running Ansible over the VPN
+
+`hosts.ini` points each board at its LAN address, so `make run` only
+works from your home network. When you're away, run the playbook through
+the board's [WireGuard tunnel](#wireguard-vpn) instead:
+
+```sh
+ansible-playbook playbook.yml --limit=rpi3 \
+  --extra-vars "ansible_host=<TUNNEL_IP>"
+```
+
+- `<TUNNEL_IP>` is the board's `wireguard_address` from
+  `host_vars/<host>/wireguard.yml`, without the `/24` suffix.
+- `--extra-vars` has the highest
+  [variable precedence](https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_variables.html#understanding-variable-precedence),
+  so it overrides `hosts.ini`'s `ansible_host` for this run only.
+- Always pair it with `--limit` for a single host: without it, every
+  board gets the same address. Repeat the command once per board.
+- Vault-encrypted variables still need the vault password — see
+  [Ansible Vault password](#ansible-vault-password).
+
 ### Upgrading Debian
 
 Debian's current stable release is tracked at
@@ -740,6 +765,7 @@ keep this project up-to-date and well-maintained.
 ## See also
 
 - [Ansible Vault documentation](https://docs.ansible.com/ansible/latest/vault_guide/index.html)
+- [Ansible variable precedence](https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_variables.html#understanding-variable-precedence)
 - [k3s documentation](https://docs.k3s.io/)
 - [Prometheus Node Exporter](https://github.com/prometheus/node_exporter)
 - [Vector documentation](https://vector.dev/docs/)
